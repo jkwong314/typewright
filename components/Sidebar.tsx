@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation'
 import { useState, useRef } from 'react'
 import { useProjectStore } from '@/lib/store'
 import ExportModal from './ExportModal'
-import type { Project } from '@/lib/types'
 
 export default function Sidebar() {
   const pathname = usePathname()
@@ -47,25 +46,28 @@ export default function Sidebar() {
 
   return (
     <>
-      <aside className="w-56 h-screen bg-gray-900 text-white flex flex-col fixed left-0 top-0 z-10">
-        <div className="px-4 py-5 border-b border-gray-700">
-          <span className="text-sm font-semibold tracking-widest uppercase text-gray-300">
+      <aside
+        className="w-52 h-screen fixed left-0 top-0 z-20 flex flex-col"
+        style={{ background: 'var(--surface)', borderRight: '1px solid var(--border)' }}
+      >
+        <div className="px-5 py-5" style={{ borderBottom: '1px solid var(--border)' }}>
+          <span className="text-xs font-semibold tracking-[0.2em] uppercase" style={{ color: 'var(--accent)' }}>
             Typewright
           </span>
         </div>
 
-        <nav className="flex-1 px-2 py-4 space-y-1">
+        <nav className="flex-1 px-2 py-3 space-y-0.5">
           {navLinks.map((link) => {
-            const active = pathname === link.href
+            const active = pathname === link.href || (link.href !== '/' && pathname.startsWith(link.href))
             return (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`block px-3 py-2 rounded text-sm transition-colors ${
-                  active
-                    ? 'bg-gray-700 text-white'
-                    : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-                }`}
+                className="flex items-center px-3 py-2 rounded-md text-xs transition-colors"
+                style={active
+                  ? { background: 'var(--surface2)', color: 'var(--text)' }
+                  : { color: 'var(--muted)' }
+                }
               >
                 {link.label}
               </Link>
@@ -73,32 +75,22 @@ export default function Sidebar() {
           })}
         </nav>
 
-        <div className="px-2 py-4 border-t border-gray-700 space-y-1">
-          <button
-            onClick={() => setExportOpen(true)}
-            className="w-full text-left px-3 py-2 rounded text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
-          >
-            Export Fonts
-          </button>
-          <button
-            onClick={handleSaveProject}
-            className="w-full text-left px-3 py-2 rounded text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
-          >
-            Save Project
-          </button>
-          <button
-            onClick={() => loadRef.current?.click()}
-            className="w-full text-left px-3 py-2 rounded text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
-          >
-            Load Project
-          </button>
-          <input
-            ref={loadRef}
-            type="file"
-            accept=".typproject"
-            className="hidden"
-            onChange={handleLoadProject}
-          />
+        <div className="px-2 py-3 space-y-0.5" style={{ borderTop: '1px solid var(--border)' }}>
+          {[
+            { label: 'Export Fonts', action: () => setExportOpen(true) },
+            { label: 'Save Project', action: handleSaveProject },
+            { label: 'Load Project', action: () => loadRef.current?.click() },
+          ].map(({ label, action }) => (
+            <button
+              key={label}
+              onClick={action}
+              className="w-full text-left px-3 py-2 rounded-md text-xs transition-colors hover:text-[var(--text)] hover:bg-[var(--surface2)]"
+              style={{ color: 'var(--muted)' }}
+            >
+              {label}
+            </button>
+          ))}
+          <input ref={loadRef} type="file" accept=".typproject" className="hidden" onChange={handleLoadProject} />
         </div>
       </aside>
 

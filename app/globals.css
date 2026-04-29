@@ -3,25 +3,39 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg:       #0c0c0c;
+  --surface:  #141414;
+  --surface2: #1e1e1e;
+  --border:   rgba(255,255,255,0.07);
+  --border2:  rgba(255,255,255,0.12);
+  --text:     #f0ece6;
+  --muted:    #6b6b6b;
+  --accent:   #d4c4a8;
+  --accent2:  #e8d9bc;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+* { box-sizing: border-box; }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
 }
 
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { opacity: 1; }
+
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+  .surface   { background: var(--surface); }
+  .surface2  { background: var(--surface2); }
+  .bordered  { border: 1px solid var(--border); }
+  .bordered2 { border: 1px solid var(--border2); }
+  .text-muted { color: var(--muted); }
+  .text-accent { color: var(--accent); }
 }

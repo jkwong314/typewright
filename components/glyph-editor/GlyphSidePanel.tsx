@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import type { Contour, FontStyle } from '@/lib/types'
 
 interface Props {
@@ -23,6 +23,69 @@ export default function GlyphSidePanel({
   onReferenceImageChange, isModified, isScratch,
 }: Props) {
   const imgInputRef = useRef<HTMLInputElement>(null)
+  const dragCounter = useRef(0)
+  const [isDragging, setIsDragging] = useState(false)
+
+  function processFile(file: File) {
+    if (!file.type.startsWith('image/')) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const img = new Image()
+      img.onload = () => {
+        const maxW = 1200
+        const scale = img.width > maxW ? maxW / img.width : 1
+        const canvas = document.createElement('canvas')
+        canvas.width  = img.width  * scale
+        canvas.height = img.height * scale
+        canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+        onReferenceImageChange(canvas.toDataURL('image/jpeg', 0.82))
+      }
+      img.src = ev.target?.result as string
+    }
+    reader.readAsDataURL(file)
+  }
+
+  // Clipboard paste while glyph editor is open
+  useEffect(() => {
+    function onPaste(e: ClipboardEvent) {
+      // Don't hijack paste when typing in a text input
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+      const items = e.clipboardData?.items
+      if (!items) return
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i]
+        if (it.type.startsWith('image/')) {
+          const file = it.getAsFile()
+          if (file) {
+            e.preventDefault()
+            processFile(file)
+            return
+          }
+        }
+      }
+    }
+    window.addEventListener('paste', onPaste)
+    return () => window.removeEventListener('paste', onPaste)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function onDragEnter(e: React.DragEvent) {
+    e.preventDefault(); e.stopPropagation()
+    dragCounter.current += 1
+    if (e.dataTransfer.types.includes('Files')) setIsDragging(true)
+  }
+  function onDragLeave(e: React.DragEvent) {
+    e.preventDefault(); e.stopPropagation()
+    dragCounter.current -= 1
+    if (dragCounter.current <= 0) { setIsDragging(false); dragCounter.current = 0 }
+  }
+  function onDragOver(e: React.DragEvent) { e.preventDefault(); e.stopPropagation() }
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault(); e.stopPropagation()
+    setIsDragging(false); dragCounter.current = 0
+    const file = e.dataTransfer.files?.[0]
+    if (file) processFile(file)
+  }
 
   const allPoints    = contours.flatMap((c) => c.points)
   const onCurvePts   = allPoints.filter((p) => p.type === 'on')
@@ -42,22 +105,7 @@ export default function GlyphSidePanel({
 
   function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const img = new Image()
-      img.onload = () => {
-        const maxW = 1200
-        const scale = img.width > maxW ? maxW / img.width : 1
-        const canvas = document.createElement('canvas')
-        canvas.width  = img.width  * scale
-        canvas.height = img.height * scale
-        canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
-        onReferenceImageChange(canvas.toDataURL('image/jpeg', 0.82))
-      }
-      img.src = ev.target?.result as string
-    }
-    reader.readAsDataURL(file)
+    if (file) processFile(file)
     e.target.value = ''
   }
 
@@ -116,18 +164,38 @@ export default function GlyphSidePanel({
               </div>
             </div>
           ) : (
-            <button
+            <div
               onClick={() => imgInputRef.current?.click()}
-              className="w-full py-3 rounded-md text-xs flex flex-col items-center gap-1.5 transition-colors"
-              style={{ border: '1.5px dashed var(--border2)', color: 'var(--muted)' }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border2)'; e.currentTarget.style.color = 'var(--muted)' }}
+              onDragEnter={onDragEnter}
+              onDragLeave={onDragLeave}
+              onDragOver={onDragOver}
+              onDrop={onDrop}
+              role="button"
+              tabIndex={0}
+              className="w-full py-3 px-2 rounded-md text-[11px] flex flex-col items-center gap-1.5 transition-all cursor-pointer outline-none"
+              style={{
+                border: isDragging ? '1.5px solid var(--accent)' : '1.5px dashed var(--border2)',
+                background: isDragging ? 'rgba(212,196,168,0.06)' : 'transparent',
+                color: isDragging ? 'var(--accent)' : 'var(--muted)',
+              }}
+              onMouseEnter={(e) => {
+                if (isDragging) return
+                e.currentTarget.style.borderColor = 'var(--accent)'
+                e.currentTarget.style.color = 'var(--accent)'
+              }}
+              onMouseLeave={(e) => {
+                if (isDragging) return
+                e.currentTarget.style.borderColor = 'var(--border2)'
+                e.currentTarget.style.color = 'var(--muted)'
+              }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
               </svg>
-              Add reference
-            </button>
+              <span className="text-center leading-tight">
+                {isDragging ? 'Drop here' : 'Drop, paste, or click'}
+              </span>
+            </div>
           )}
           <input ref={imgInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
         </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useProjectStore } from '@/lib/store'
 import { useToast } from '@/components/Toast'
@@ -76,7 +76,9 @@ export default function CreateFontModal({ onClose }: { onClose: () => void }) {
   })
   const [refImage, setRefImage] = useState<string | null>(null)
   const [refImageName, setRefImageName] = useState('')
+  const [isDragging, setIsDragging] = useState(false)
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const dragCounter = useRef(0)
 
   function toggleSet(id: string) {
     setSelectedSets((prev) => {
@@ -90,28 +92,81 @@ export default function CreateFontModal({ onClose }: { onClose: () => void }) {
     setMetrics((prev) => ({ ...prev, [key]: val }))
   }
 
-  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setRefImageName(file.name)
+  // Shared file processor: validates, downscales, stores as data URL
+  function processImageFile(file: File) {
+    if (!file.type.startsWith('image/')) {
+      showToast('That file is not an image', 'error')
+      return
+    }
+    setRefImageName(file.name || 'pasted-image')
     const reader = new FileReader()
     reader.onload = (ev) => {
-      // Downscale to max 1200px wide before storing
       const img = new Image()
       img.onload = () => {
         const maxW = 1200
         const scale = img.width > maxW ? maxW / img.width : 1
         const canvas = document.createElement('canvas')
-        canvas.width = img.width * scale
+        canvas.width  = img.width  * scale
         canvas.height = img.height * scale
-        const ctx = canvas.getContext('2d')!
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
         setRefImage(canvas.toDataURL('image/jpeg', 0.85))
       }
       img.src = ev.target?.result as string
     }
     reader.readAsDataURL(file)
   }
+
+  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) processImageFile(file)
+    e.target.value = ''
+  }
+
+  // ── Drag & drop ─────────────────────────────────────────────────────
+  function onDragEnter(e: React.DragEvent) {
+    e.preventDefault(); e.stopPropagation()
+    dragCounter.current += 1
+    if (e.dataTransfer.types.includes('Files')) setIsDragging(true)
+  }
+  function onDragLeave(e: React.DragEvent) {
+    e.preventDefault(); e.stopPropagation()
+    dragCounter.current -= 1
+    if (dragCounter.current <= 0) { setIsDragging(false); dragCounter.current = 0 }
+  }
+  function onDragOver(e: React.DragEvent) {
+    e.preventDefault(); e.stopPropagation()
+    e.dataTransfer.dropEffect = 'copy'
+  }
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault(); e.stopPropagation()
+    setIsDragging(false)
+    dragCounter.current = 0
+    const file = e.dataTransfer.files?.[0]
+    if (file) processImageFile(file)
+  }
+
+  // ── Clipboard paste (only while modal is open + image step) ─────────
+  useEffect(() => {
+    if (mode !== 'image' || step !== 'configure') return
+    function onPaste(e: ClipboardEvent) {
+      const items = e.clipboardData?.items
+      if (!items) return
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile()
+          if (file) {
+            e.preventDefault()
+            processImageFile(file)
+            showToast('Image pasted from clipboard', 'success')
+            return
+          }
+        }
+      }
+    }
+    window.addEventListener('paste', onPaste)
+    return () => window.removeEventListener('paste', onPaste)
+  }, [mode, step]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleCreate() {
     const trimmed = name.trim()
@@ -229,31 +284,75 @@ export default function CreateFontModal({ onClose }: { onClose: () => void }) {
                 <div>
                   <label className="text-xs mb-1.5 block" style={{ color: 'var(--muted)' }}>Reference Image</label>
                   {refImage ? (
-                    <div className="rounded-lg overflow-hidden relative" style={{ border: '1px solid var(--border2)' }}>
+                    <div
+                      className="rounded-lg overflow-hidden relative"
+                      style={{
+                        border: isDragging ? '1.5px solid var(--accent)' : '1px solid var(--border2)',
+                        boxShadow: isDragging ? '0 0 0 4px rgba(212,196,168,0.15)' : 'none',
+                      }}
+                      onDragEnter={onDragEnter}
+                      onDragLeave={onDragLeave}
+                      onDragOver={onDragOver}
+                      onDrop={onDrop}
+                    >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={refImage} alt="Reference" className="w-full max-h-40 object-contain" style={{ background: 'var(--bg)' }} />
-                      <div className="absolute top-2 right-2">
+                      {isDragging && (
+                        <div className="absolute inset-0 flex items-center justify-center text-xs font-medium pointer-events-none"
+                          style={{ background: 'rgba(0,0,0,0.65)', color: 'var(--accent)' }}>
+                          Drop to replace
+                        </div>
+                      )}
+                      <div className="absolute top-2 right-2 flex gap-1">
+                        <button
+                          onClick={() => imageInputRef.current?.click()}
+                          className="text-xs px-2 py-1 rounded"
+                          style={{ background: 'rgba(0,0,0,0.7)', color: 'var(--muted)' }}
+                        >Replace</button>
                         <button
                           onClick={() => { setRefImage(null); setRefImageName('') }}
                           className="text-xs px-2 py-1 rounded"
                           style={{ background: 'rgba(0,0,0,0.7)', color: 'var(--muted)' }}
-                        >✕ Remove</button>
+                        >✕</button>
                       </div>
                     </div>
                   ) : (
-                    <button
+                    <div
                       onClick={() => imageInputRef.current?.click()}
-                      className="w-full rounded-lg py-8 flex flex-col items-center gap-2 transition-colors"
-                      style={{ border: '1.5px dashed var(--border2)', color: 'var(--muted)' }}
-                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border2)'; e.currentTarget.style.color = 'var(--muted)' }}
+                      onDragEnter={onDragEnter}
+                      onDragLeave={onDragLeave}
+                      onDragOver={onDragOver}
+                      onDrop={onDrop}
+                      role="button"
+                      tabIndex={0}
+                      className="w-full rounded-lg py-8 flex flex-col items-center gap-2 transition-all cursor-pointer outline-none"
+                      style={{
+                        border: isDragging ? '1.5px solid var(--accent)' : '1.5px dashed var(--border2)',
+                        background: isDragging ? 'rgba(212,196,168,0.06)' : 'transparent',
+                        color: isDragging ? 'var(--accent)' : 'var(--muted)',
+                        boxShadow: isDragging ? '0 0 0 4px rgba(212,196,168,0.1)' : 'none',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (isDragging) return
+                        e.currentTarget.style.borderColor = 'var(--accent)'
+                        e.currentTarget.style.color = 'var(--accent)'
+                      }}
+                      onMouseLeave={(e) => {
+                        if (isDragging) return
+                        e.currentTarget.style.borderColor = 'var(--border2)'
+                        e.currentTarget.style.color = 'var(--muted)'
+                      }}
                     >
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
                       </svg>
-                      <span className="text-xs">Click to upload a sketch or photo</span>
-                      <span className="text-[10px]">PNG, JPG, WEBP</span>
-                    </button>
+                      <span className="text-xs font-medium">
+                        {isDragging ? 'Drop image here' : 'Drag, paste, or click to upload'}
+                      </span>
+                      <span className="text-[10px]">
+                        PNG, JPG, WEBP · or paste with <kbd className="font-mono px-1 py-0.5 rounded" style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}>⌘V</kbd>
+                      </span>
+                    </div>
                   )}
                   <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                 </div>

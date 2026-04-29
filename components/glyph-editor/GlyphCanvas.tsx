@@ -12,6 +12,7 @@ interface Props {
   metrics: { ascender: number; descender: number; unitsPerEm: number; capHeight: number; xHeight: number }
   onChange: (contours: Contour[]) => void
   referenceImageUrl?: string
+  defaultMode?: EditorMode
 }
 
 interface DragState {
@@ -26,7 +27,7 @@ interface DragState {
 // Distance in font units below which we snap to the first pen point to close a contour
 const CLOSE_SNAP = 14
 
-export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange, referenceImageUrl }: Props) {
+export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange, referenceImageUrl, defaultMode }: Props) {
   const svgRef        = useRef<SVGSVGElement>(null)
   const contoursRef   = useRef<Contour[]>(contours)
   const dragRef       = useRef<DragState | null>(null)
@@ -35,8 +36,8 @@ export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange,
   const [selected,       setSelected]       = useState<{ ci: number; pi: number } | null>(null)
   const [localContours,  setLocalContours]  = useState<Contour[]>(contours)
   const [zoom,           setZoom]           = useState(1)
-  const [mode,           setMode]           = useState<EditorMode>('select')
-  const [imageOpacity,   setImageOpacity]   = useState(0.25)
+  const [mode,           setMode]           = useState<EditorMode>(defaultMode ?? 'select')
+  const [imageOpacity,   setImageOpacity]   = useState(0.4)
 
   // Pen tool state
   const [penContour,   setPenContour]   = useState<BezierPoint[]>([])   // points placed so far
@@ -396,14 +397,14 @@ export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange,
         }}
       >
         <g transform="scale(1,-1)">
-          {/* ── Reference image overlay ─────────────────────────────── */}
+          {/* ── Reference image overlay — fills entire canvas viewBox ── */}
           {referenceImageUrl && (
             <image
               href={referenceImageUrl}
-              x={0}
-              y={descender}
-              width={advanceWidth}
-              height={totalH}
+              x={-margin}
+              y={descender - margin}
+              width={advanceWidth + margin * 2}
+              height={totalH + margin * 2}
               preserveAspectRatio="xMidYMid meet"
               opacity={imageOpacity}
               style={{ pointerEvents: 'none' }}

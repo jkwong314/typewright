@@ -190,6 +190,7 @@ export default function GlyphEditorPage({ params }: { params: { id: string; unic
               metrics={style.metrics}
               onChange={handleChange}
               referenceImageUrl={referenceImageUrl}
+              defaultMode={isScratch && contours.length === 0 ? 'pen' : 'select'}
             />
           )}
         </div>

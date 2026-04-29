@@ -57,7 +57,7 @@ function NumberInput({ value, onChange, min, max }: { value: number; onChange: (
 
 export default function CreateFontModal({ onClose }: { onClose: () => void }) {
   const router = useRouter()
-  const { addFamily, addStyle } = useProjectStore()
+  const { addFamily, addStyle, setGlyphOverride } = useProjectStore()
   const { showToast } = useToast()
 
   const [step, setStep] = useState<Step>('choose')
@@ -168,13 +168,19 @@ export default function CreateFontModal({ onClose }: { onClose: () => void }) {
     return () => window.removeEventListener('paste', onPaste)
   }, [mode, step]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Pick the natural "first" character from the selected sets
+  function pickFirstChar(): string {
+    if (selectedSets.has('upper')) return 'A'
+    if (selectedSets.has('lower')) return 'a'
+    if (selectedSets.has('nums'))  return '0'
+    if (selectedSets.has('punct')) return '.'
+    if (selectedSets.has('sym'))   return '@'
+    return 'A'
+  }
+
   function handleCreate() {
     const trimmed = name.trim()
     if (!trimmed) { showToast('Enter a family name', 'error'); return }
-
-    // Build the list of glyphs to pre-create as empty overrides
-    let chars = ''
-    CHAR_SETS.forEach((cs) => { if (selectedSets.has(cs.id)) chars += cs.chars })
 
     const familyId = addFamily(trimmed, true)
     const styleId = addStyle(familyId, {
@@ -186,16 +192,28 @@ export default function CreateFontModal({ onClose }: { onClose: () => void }) {
       metrics,
     })
 
-    // If image reference provided, pre-create blank glyph overrides with the reference image
-    // (image stored only on the first available glyph so user can see it immediately)
-    // The reference image will be accessible from the glyph editor
-    if (refImage) {
-      // Store ref image in session storage keyed by familyId so glyph editor can pick it up
-      try { sessionStorage.setItem(`refimg-${familyId}`, refImage) } catch {}
-    }
+    // Trace-from-image flow: drop user straight into glyph editor with image loaded
+    if (mode === 'image' && refImage) {
+      const firstChar = pickFirstChar()
+      const hex = firstChar.codePointAt(0)!.toString(16).toUpperCase()
 
-    showToast(`"${trimmed}" created`, 'success')
-    router.push(`/family/${familyId}`)
+      // Save image at family level so other glyphs in same session inherit it
+      try { sessionStorage.setItem(`refimg-${familyId}`, refImage) } catch {}
+
+      // Pre-create the override on the first glyph so the editor has it immediately
+      setGlyphOverride(familyId, styleId, {
+        unicode: hex,
+        advanceWidth: metrics.unitsPerEm / 2,
+        contours: [],
+        referenceImageUrl: refImage,
+      })
+
+      showToast(`"${trimmed}" created — start tracing!`, 'success')
+      router.push(`/family/${familyId}/glyph/${hex}?style=${styleId}`)
+    } else {
+      showToast(`"${trimmed}" created`, 'success')
+      router.push(`/family/${familyId}`)
+    }
     onClose()
   }
 

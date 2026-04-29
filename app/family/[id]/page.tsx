@@ -80,8 +80,8 @@ export default function FamilyEditorPage({ params }: { params: { id: string } })
           )}
         </div>
 
-        {/* Tab content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        {/* Tab content — metrics tab fills full height; others scroll */}
+        <div className={`flex-1 p-6 ${tab === 0 ? 'overflow-hidden' : 'overflow-y-auto'}`}>
           {!activeStyle ? (
             <p className="text-sm" style={{ color: 'var(--muted)' }}>
               Select a style to start editing, or go to{' '}

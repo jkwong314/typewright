@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useProjectStore } from '@/lib/store'
 import FamilyCard from '@/components/dashboard/FamilyCard'
+import FontRecommendations from '@/components/dashboard/FontRecommendations'
 
 export default function DashboardPage() {
   const { project, addFamily } = useProjectStore()
@@ -54,6 +55,8 @@ export default function DashboardPage() {
           ))}
         </div>
       )}
+
+      <FontRecommendations />
     </div>
   )
 }

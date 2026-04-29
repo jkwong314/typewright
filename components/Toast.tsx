@@ -37,7 +37,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <div className="fixed bottom-5 right-5 space-y-2 z-[100]">
+      <div className="fixed top-5 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-[100]">
         {toasts.map((t) => {
           const c = colors[t.type]
           return (

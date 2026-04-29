@@ -58,15 +58,19 @@ export default function FamilyCard({ family }: { family: FontFamily }) {
       tabIndex={0}
       onClick={handleCardClick}
       onKeyDown={(e) => e.key === 'Enter' && handleCardClick()}
-      className="rounded-xl p-5 flex flex-col gap-4 cursor-pointer relative group transition-colors outline-none"
+      className="rounded-xl p-5 flex flex-col gap-4 cursor-pointer relative group transition-all outline-none"
       style={{
         background: 'var(--surface)',
-        border: '1px solid var(--border)',
+        border: '1px solid var(--border2)',
+        boxShadow: '0 0 0 0 transparent',
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--border2)')}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = 'var(--accent)'
+        e.currentTarget.style.boxShadow = '0 0 0 1px var(--accent)'
+      }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = 'var(--border)'
-        // only reset if not hovering the delete button itself
+        e.currentTarget.style.borderColor = 'var(--border2)'
+        e.currentTarget.style.boxShadow = '0 0 0 0 transparent'
       }}
     >
       {fontUrl && (
@@ -77,6 +81,21 @@ export default function FamilyCard({ family }: { family: FontFamily }) {
           }
         `}</style>
       )}
+
+      {/* ── "In Library" badge — top left ────────────────────────────── */}
+      <div
+        className="absolute top-3 left-4 flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full"
+        style={{
+          background: 'rgba(212,196,168,0.1)',
+          color: 'var(--accent)',
+          border: '1px solid rgba(212,196,168,0.2)',
+        }}
+      >
+        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
+        In Library
+      </div>
 
       {/* ── Remove button — top right, always visible ─────────────────── */}
       <button
@@ -121,7 +140,7 @@ export default function FamilyCard({ family }: { family: FontFamily }) {
 
       {/* ── Font preview ──────────────────────────────────────────────── */}
       <div
-        className="text-4xl leading-none tracking-tight truncate py-3"
+        className="text-4xl leading-none tracking-tight truncate pt-7 pb-2"
         style={{
           fontFamily: fontUrl ? `'${fontFaceId}', serif` : 'serif',
           color: 'var(--text)',

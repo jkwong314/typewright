@@ -77,7 +77,7 @@ export default function FontRecommendations() {
   if (error) return null
 
   return (
-    <section className="mt-12">
+    <section className="mt-12 pt-10" style={{ borderTop: '1px solid var(--border)' }}>
       {/* Section header */}
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -125,7 +125,7 @@ export default function FontRecommendations() {
             <div
               key={i}
               className="rounded-xl p-5 h-32 animate-pulse"
-              style={{ background: 'var(--surface)' }}
+              style={{ background: 'var(--bg)', border: '1px dashed var(--border2)' }}
             />
           ))}
         </div>
@@ -136,16 +136,21 @@ export default function FontRecommendations() {
             return (
               <div
                 key={font.family}
-                className="rounded-xl p-5 flex flex-col gap-3 group transition-colors"
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+                className="rounded-xl p-5 flex flex-col gap-3 transition-all"
+                style={{
+                  background: 'var(--bg)',
+                  border: '1px dashed var(--border2)',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'rgba(212,196,168,0.35)')}
+                onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border2)')}
               >
                 {/* Load font for preview via Google Fonts CSS */}
                 <style>{`@import url('https://fonts.googleapis.com/css2?family=${encodeURIComponent(font.family)}&display=swap');`}</style>
 
-                {/* Preview text */}
+                {/* Preview text — slightly muted to feel "unowned" */}
                 <div
                   className="text-4xl leading-none tracking-tight truncate py-2"
-                  style={{ fontFamily: `'${font.family}', serif`, color: 'var(--text)' }}
+                  style={{ fontFamily: `'${font.family}', serif`, color: 'rgba(240,236,230,0.5)' }}
                 >
                   Aa Bb Cc
                 </div>
@@ -163,8 +168,8 @@ export default function FontRecommendations() {
                   <button
                     onClick={() => importFont(font)}
                     disabled={isImporting}
-                    className="text-xs px-3 py-1.5 rounded-md shrink-0 font-medium transition-all disabled:opacity-50"
-                    style={{ background: 'var(--surface2)', color: 'var(--accent)', border: '1px solid var(--border2)' }}
+                    className="text-xs px-3 py-1.5 rounded-md shrink-0 font-medium transition-all disabled:opacity-40"
+                    style={{ background: 'var(--accent)', color: '#0c0c0c' }}
                   >
                     {isImporting ? '…' : '+ Import'}
                   </button>

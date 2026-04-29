@@ -10,7 +10,7 @@ export default function LibraryPage() {
   const [active, setActive] = useState(0)
 
   return (
-    <div className="min-h-screen p-8 max-w-3xl">
+    <div className="min-h-screen p-8 max-w-5xl">
       <h1 className="text-lg font-semibold tracking-tight mb-1" style={{ color: 'var(--text)' }}>
         Font Library
       </h1>

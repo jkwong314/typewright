@@ -71,4 +71,6 @@ export interface GoogleFontResult {
   family: string
   variants: string[]
   files: Record<string, string>
+  category?: string
+  subsets?: string[]
 }

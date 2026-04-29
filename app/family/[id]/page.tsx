@@ -8,8 +8,9 @@ import StylePanel from '@/components/family/StylePanel'
 import MetricsTab from '@/components/family/MetricsTab'
 import KerningTab from '@/components/family/KerningTab'
 import GlyphsTab from '@/components/family/GlyphsTab'
+import LigaturesTab from '@/components/family/LigaturesTab'
 
-const TABS = ['Metrics', 'Kerning', 'Glyphs']
+const TABS = ['Metrics', 'Kerning', 'Glyphs', 'Ligatures']
 
 export default function FamilyEditorPage({ params }: { params: { id: string } }) {
   const { project } = useProjectStore()
@@ -80,7 +81,7 @@ export default function FamilyEditorPage({ params }: { params: { id: string } })
           )}
         </div>
 
-        {/* Tab content — metrics tab fills full height; others scroll */}
+        {/* Tab content — metrics fills full height; others scroll */}
         <div className={`flex-1 p-6 ${tab === 0 ? 'overflow-hidden' : 'overflow-y-auto'}`}>
           {!activeStyle ? (
             <p className="text-sm" style={{ color: 'var(--muted)' }}>
@@ -91,8 +92,10 @@ export default function FamilyEditorPage({ params }: { params: { id: string } })
             <MetricsTab family={family} style={activeStyle} />
           ) : tab === 1 ? (
             <KerningTab family={family} style={activeStyle} />
-          ) : (
+          ) : tab === 2 ? (
             <GlyphsTab family={family} style={activeStyle} />
+          ) : (
+            <LigaturesTab family={family} style={activeStyle} />
           )}
         </div>
       </div>

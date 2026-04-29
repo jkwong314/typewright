@@ -47,23 +47,46 @@ export default function GlyphEditorPage({ params }: { params: { id: string; unic
   const styleId = searchParams.get('style')
 
   const family = project.families.find((f) => f.id === params.id)
-  const style = family?.styles.find((s) => s.id === styleId) ?? family?.styles[0]
+  const style  = family?.styles.find((s) => s.id === styleId) ?? family?.styles[0]
+  const isScratch = !style?.sourceFontId
 
-  const { font, loading } = useFontData(style?.sourceFontId)
+  const { font, loading } = useFontData(style?.sourceFontId || undefined)
 
-  const [contours, setContours] = useState<Contour[]>([])
-  const [advanceWidth, setAdvanceWidth] = useState(500)
-  const [glyphName, setGlyphName] = useState('')
-  const [sourceContours, setSourceContours] = useState<Contour[]>([])
+  const [contours,           setContours]           = useState<Contour[]>([])
+  const [advanceWidth,       setAdvanceWidth]       = useState(500)
+  const [glyphName,          setGlyphName]          = useState('')
+  const [sourceContours,     setSourceContours]     = useState<Contour[]>([])
   const [sourceAdvanceWidth, setSourceAdvanceWidth] = useState(500)
+  const [referenceImageUrl,  setReferenceImageUrl]  = useState<string | undefined>()
 
-  const unicode = params.unicode.toUpperCase()
+  const unicode   = params.unicode.toUpperCase()
   const codePoint = parseInt(unicode, 16)
   const isModified = !!(style?.glyphOverrides[unicode])
 
   // Load glyph from font or override
   useEffect(() => {
-    if (!font || !style) return
+    if (!style) return
+
+    // Scratch font: start from override or blank
+    if (isScratch) {
+      const override = style.glyphOverrides[unicode]
+      if (override) {
+        setContours(override.contours)
+        setAdvanceWidth(override.advanceWidth)
+        setReferenceImageUrl(override.referenceImageUrl)
+      } else {
+        setContours([])
+        setAdvanceWidth(style.metrics.unitsPerEm / 2)
+        // Check session storage for global family reference image
+        try {
+          const stored = sessionStorage.getItem(`refimg-${family?.id}`)
+          if (stored) setReferenceImageUrl(stored)
+        } catch {}
+      }
+      return
+    }
+
+    if (!font) return
     const glyph = font.charToGlyph(String.fromCodePoint(codePoint))
     const srcContours = glyphToContours(glyph)
     const srcAW = glyph?.advanceWidth ?? 500
@@ -75,11 +98,12 @@ export default function GlyphEditorPage({ params }: { params: { id: string; unic
     if (override) {
       setContours(override.contours)
       setAdvanceWidth(override.advanceWidth)
+      setReferenceImageUrl(override.referenceImageUrl)
     } else {
       setContours(srcContours)
       setAdvanceWidth(srcAW)
     }
-  }, [font, style, unicode, codePoint])
+  }, [font, style, unicode, codePoint, isScratch, family?.id])
 
   const handleChange = useCallback((newContours: Contour[]) => {
     if (!family || !style) return
@@ -88,21 +112,36 @@ export default function GlyphEditorPage({ params }: { params: { id: string; unic
       unicode,
       advanceWidth,
       contours: newContours,
+      referenceImageUrl,
     })
-  }, [family, style, unicode, advanceWidth, setGlyphOverride])
+  }, [family, style, unicode, advanceWidth, referenceImageUrl, setGlyphOverride])
 
   const handleAdvanceWidthChange = useCallback((val: number) => {
     if (!family || !style) return
     setAdvanceWidth(val)
-    setGlyphOverride(family.id, style.id, { unicode, advanceWidth: val, contours })
-  }, [family, style, unicode, contours, setGlyphOverride])
+    setGlyphOverride(family.id, style.id, { unicode, advanceWidth: val, contours, referenceImageUrl })
+  }, [family, style, unicode, contours, referenceImageUrl, setGlyphOverride])
+
+  const handleReferenceImageChange = useCallback((url: string | undefined) => {
+    if (!family || !style) return
+    setReferenceImageUrl(url)
+    // Persist to current override
+    setGlyphOverride(family.id, style.id, { unicode, advanceWidth, contours, referenceImageUrl: url })
+  }, [family, style, unicode, advanceWidth, contours, setGlyphOverride])
 
   const handleReset = useCallback(() => {
-    if (!family || !style || !confirm('Reset this glyph to the source font?')) return
-    removeGlyphOverride(family.id, style.id, unicode)
-    setContours(sourceContours)
-    setAdvanceWidth(sourceAdvanceWidth)
-  }, [family, style, unicode, sourceContours, sourceAdvanceWidth, removeGlyphOverride])
+    if (!family || !style) return
+    if (isScratch) {
+      if (!confirm('Clear all drawn paths for this glyph?')) return
+      removeGlyphOverride(family.id, style.id, unicode)
+      setContours([])
+    } else {
+      if (!confirm('Reset this glyph to the source font?')) return
+      removeGlyphOverride(family.id, style.id, unicode)
+      setContours(sourceContours)
+      setAdvanceWidth(sourceAdvanceWidth)
+    }
+  }, [family, style, unicode, sourceContours, sourceAdvanceWidth, isScratch, removeGlyphOverride])
 
   if (!family || !style) {
     return (
@@ -123,16 +162,15 @@ export default function GlyphEditorPage({ params }: { params: { id: string; unic
         <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--muted)' }}>
           <Link href="/" className="hover:text-[var(--text)] transition-colors">Dashboard</Link>
           <span>/</span>
-          <Link href={`/family/${family.id}`} className="hover:text-[var(--text)] transition-colors">
-            {family.name}
-          </Link>
+          <Link href={`/family/${family.id}`} className="hover:text-[var(--text)] transition-colors">{family.name}</Link>
           <span>/</span>
           <span style={{ color: 'var(--text)' }}>
-            U+{unicode} {String.fromCodePoint(codePoint)}
+            {isScratch ? String.fromCodePoint(codePoint) : `U+${unicode} ${String.fromCodePoint(codePoint)}`}
           </span>
           {isModified && (
-            <span className="px-1.5 py-0.5 rounded text-[10px]" style={{ background: 'rgba(212,196,168,0.12)', color: 'var(--accent)' }}>
-              modified
+            <span className="px-1.5 py-0.5 rounded text-[10px]"
+              style={{ background: 'rgba(212,196,168,0.12)', color: 'var(--accent)' }}>
+              {isScratch ? 'drawn' : 'modified'}
             </span>
           )}
         </div>
@@ -141,7 +179,7 @@ export default function GlyphEditorPage({ params }: { params: { id: string; unic
       {/* Canvas + side panel */}
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 overflow-hidden" style={{ background: 'var(--bg)' }}>
-          {loading ? (
+          {!isScratch && loading ? (
             <div className="flex items-center justify-center h-full">
               <p className="text-xs" style={{ color: 'var(--muted)' }}>Loading…</p>
             </div>
@@ -151,6 +189,7 @@ export default function GlyphEditorPage({ params }: { params: { id: string; unic
               advanceWidth={advanceWidth}
               metrics={style.metrics}
               onChange={handleChange}
+              referenceImageUrl={referenceImageUrl}
             />
           )}
         </div>
@@ -161,9 +200,12 @@ export default function GlyphEditorPage({ params }: { params: { id: string; unic
           advanceWidth={advanceWidth}
           contours={contours}
           style={style}
+          referenceImageUrl={referenceImageUrl}
           onAdvanceWidthChange={handleAdvanceWidthChange}
           onReset={handleReset}
+          onReferenceImageChange={handleReferenceImageChange}
           isModified={isModified}
+          isScratch={isScratch}
         />
       </div>
     </div>

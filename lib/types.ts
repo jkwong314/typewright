@@ -12,6 +12,7 @@ export interface GlyphOverride {
   unicode: string
   advanceWidth: number
   contours: Contour[]
+  referenceImageUrl?: string   // per-glyph tracing reference
 }
 
 export interface KerningPair {
@@ -35,16 +36,18 @@ export interface FontStyle {
   weight: number
   italic: boolean
   widthClass: number
-  sourceFontId: string
+  sourceFontId: string          // empty string = created from scratch
   metrics: FontMetrics
   kerningPairs: KerningPair[]
   glyphOverrides: Record<string, GlyphOverride>
+  ligatures: Record<string, GlyphOverride>   // keyed by sequence e.g. "fi"
 }
 
 export interface FontFamily {
   id: string
   name: string
   styles: FontStyle[]
+  createdFromScratch?: boolean
 }
 
 export interface Project {

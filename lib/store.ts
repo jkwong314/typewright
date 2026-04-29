@@ -18,13 +18,14 @@ const defaultMetrics: FontMetrics = {
 interface ProjectStore {
   project: Project
 
-  addFamily: (name: string) => string
+  addFamily: (name: string, fromScratch?: boolean) => string
   removeFamily: (familyId: string) => void
   renameFamily: (familyId: string, name: string) => void
 
-  addStyle: (familyId: string, style: Omit<FontStyle, 'id' | 'kerningPairs' | 'glyphOverrides'>) => string
+  addStyle: (familyId: string, style: Omit<FontStyle, 'id' | 'kerningPairs' | 'glyphOverrides' | 'ligatures'>) => string
   removeStyle: (familyId: string, styleId: string) => void
   updateStyleMeta: (familyId: string, styleId: string, meta: Partial<Pick<FontStyle, 'name' | 'weight' | 'italic' | 'widthClass'>>) => void
+  duplicateStyle: (familyId: string, styleId: string, newName: string, newWeight: number) => string
 
   updateMetrics: (familyId: string, styleId: string, metrics: Partial<FontMetrics>) => void
 
@@ -33,6 +34,9 @@ interface ProjectStore {
 
   setGlyphOverride: (familyId: string, styleId: string, override: GlyphOverride) => void
   removeGlyphOverride: (familyId: string, styleId: string, unicode: string) => void
+
+  setLigature: (familyId: string, styleId: string, override: GlyphOverride) => void
+  removeLigature: (familyId: string, styleId: string, sequence: string) => void
 
   loadProject: (project: Project) => void
   clearProject: () => void
@@ -43,12 +47,12 @@ export const useProjectStore = create<ProjectStore>()(
     (set) => ({
       project: { families: [] },
 
-      addFamily: (name) => {
+      addFamily: (name, fromScratch = false) => {
         const id = generateId()
         set((s) => ({
           project: {
             ...s.project,
-            families: [...s.project.families, { id, name, styles: [] }],
+            families: [...s.project.families, { id, name, styles: [], createdFromScratch: fromScratch }],
           },
         }))
         return id
@@ -79,6 +83,7 @@ export const useProjectStore = create<ProjectStore>()(
           id,
           kerningPairs: [],
           glyphOverrides: {},
+          ligatures: {},
         }
         set((s) => ({
           project: {
@@ -109,16 +114,38 @@ export const useProjectStore = create<ProjectStore>()(
             ...s.project,
             families: s.project.families.map((f) =>
               f.id === familyId
-                ? {
-                    ...f,
-                    styles: f.styles.map((st) =>
-                      st.id === styleId ? { ...st, ...meta } : st
-                    ),
-                  }
+                ? { ...f, styles: f.styles.map((st) => st.id === styleId ? { ...st, ...meta } : st) }
                 : f
             ),
           },
         })),
+
+      duplicateStyle: (familyId, styleId, newName, newWeight) => {
+        const id = generateId()
+        set((s) => {
+          const family = s.project.families.find((f) => f.id === familyId)
+          const original = family?.styles.find((st) => st.id === styleId)
+          if (!original) return s
+          const newStyle: FontStyle = {
+            ...original,
+            id,
+            name: newName,
+            weight: newWeight,
+            kerningPairs: JSON.parse(JSON.stringify(original.kerningPairs)),
+            glyphOverrides: JSON.parse(JSON.stringify(original.glyphOverrides)),
+            ligatures: JSON.parse(JSON.stringify(original.ligatures ?? {})),
+          }
+          return {
+            project: {
+              ...s.project,
+              families: s.project.families.map((f) =>
+                f.id !== familyId ? f : { ...f, styles: [...f.styles, newStyle] }
+              ),
+            },
+          }
+        })
+        return id
+      },
 
       updateMetrics: (familyId, styleId, metrics) =>
         set((s) => ({
@@ -129,9 +156,7 @@ export const useProjectStore = create<ProjectStore>()(
                 ? {
                     ...f,
                     styles: f.styles.map((st) =>
-                      st.id === styleId
-                        ? { ...st, metrics: { ...st.metrics, ...metrics } }
-                        : st
+                      st.id === styleId ? { ...st, metrics: { ...st.metrics, ...metrics } } : st
                     ),
                   }
                 : f
@@ -170,12 +195,7 @@ export const useProjectStore = create<ProjectStore>()(
                     ...f,
                     styles: f.styles.map((st) =>
                       st.id === styleId
-                        ? {
-                            ...st,
-                            kerningPairs: st.kerningPairs.filter(
-                              (p) => !(p.left === left && p.right === right)
-                            ),
-                          }
+                        ? { ...st, kerningPairs: st.kerningPairs.filter((p) => !(p.left === left && p.right === right)) }
                         : st
                     ),
                   }
@@ -194,13 +214,7 @@ export const useProjectStore = create<ProjectStore>()(
                     ...f,
                     styles: f.styles.map((st) =>
                       st.id === styleId
-                        ? {
-                            ...st,
-                            glyphOverrides: {
-                              ...st.glyphOverrides,
-                              [override.unicode]: override,
-                            },
-                          }
+                        ? { ...st, glyphOverrides: { ...st.glyphOverrides, [override.unicode]: override } }
                         : st
                     ),
                   }
@@ -221,6 +235,44 @@ export const useProjectStore = create<ProjectStore>()(
                       if (st.id !== styleId) return st
                       const { [unicode]: _, ...rest } = st.glyphOverrides
                       return { ...st, glyphOverrides: rest }
+                    }),
+                  }
+                : f
+            ),
+          },
+        })),
+
+      setLigature: (familyId, styleId, override) =>
+        set((s) => ({
+          project: {
+            ...s.project,
+            families: s.project.families.map((f) =>
+              f.id === familyId
+                ? {
+                    ...f,
+                    styles: f.styles.map((st) =>
+                      st.id === styleId
+                        ? { ...st, ligatures: { ...(st.ligatures ?? {}), [override.unicode]: override } }
+                        : st
+                    ),
+                  }
+                : f
+            ),
+          },
+        })),
+
+      removeLigature: (familyId, styleId, sequence) =>
+        set((s) => ({
+          project: {
+            ...s.project,
+            families: s.project.families.map((f) =>
+              f.id === familyId
+                ? {
+                    ...f,
+                    styles: f.styles.map((st) => {
+                      if (st.id !== styleId) return st
+                      const { [sequence]: _, ...rest } = st.ligatures ?? {}
+                      return { ...st, ligatures: rest }
                     }),
                   }
                 : f

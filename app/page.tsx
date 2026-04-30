@@ -5,6 +5,8 @@ import { useProjectStore } from '@/lib/store'
 import FamilyCard from '@/components/dashboard/FamilyCard'
 import FontRecommendations from '@/components/dashboard/FontRecommendations'
 import CreateFontModal from '@/components/CreateFontModal'
+import Button from '@/components/ui/Button'
+import Card from '@/components/ui/Card'
 
 export default function DashboardPage() {
   const { project } = useProjectStore()
@@ -15,40 +17,30 @@ export default function DashboardPage() {
 
       {/* ── Hero CTA ─────────────────────────────────────────────────────── */}
       <div
-        className="rounded-2xl px-8 py-7 mb-10 flex items-center justify-between gap-6 relative overflow-hidden"
-        style={{
-          background: 'linear-gradient(135deg, rgba(212,196,168,0.12) 0%, rgba(212,196,168,0.04) 100%)',
-          border: '1px solid rgba(212,196,168,0.2)',
-        }}
+        className="rounded-2xl px-8 py-7 mb-10 flex items-center justify-between gap-6 relative overflow-hidden border border-[var(--accent-border)]"
+        style={{ background: 'linear-gradient(135deg, rgba(212,196,168,0.12) 0%, rgba(212,196,168,0.04) 100%)' }}
       >
-        {/* Decorative letterform */}
         <div
-          className="absolute right-8 top-1/2 -translate-y-1/2 text-[120px] leading-none font-bold select-none pointer-events-none"
-          style={{ color: 'rgba(212,196,168,0.06)', fontFamily: 'serif' }}
+          className="absolute right-8 top-1/2 -translate-y-1/2 text-[120px] leading-none font-bold select-none pointer-events-none text-[rgba(212,196,168,0.06)]"
+          style={{ fontFamily: 'serif' }}
           aria-hidden
         >Aa</div>
 
         <div className="relative z-10">
-          <p className="text-[10px] font-semibold tracking-widest uppercase mb-2" style={{ color: 'var(--accent)' }}>
+          <p className="text-[10px] font-semibold tracking-widest uppercase mb-2 text-[var(--accent)]">
             Typewright
           </p>
-          <h1 className="text-xl font-semibold tracking-tight mb-1.5" style={{ color: 'var(--text)' }}>
+          <h1 className="text-xl font-semibold tracking-tight mb-1.5 text-[var(--text)]">
             Create your own typeface
           </h1>
-          <p className="text-xs max-w-sm leading-relaxed" style={{ color: 'var(--muted)' }}>
+          <p className="text-xs max-w-sm leading-relaxed text-[var(--muted)]">
             Draw from scratch with the pen tool, trace from an image reference, define metrics, design ligatures, and export in WOFF2, TTF, or OTF.
           </p>
         </div>
 
-        <button
-          onClick={() => setCreateOpen(true)}
-          className="shrink-0 relative z-10 px-6 py-3 rounded-xl font-semibold text-sm transition-all"
-          style={{ background: 'var(--accent)', color: '#0c0c0c', boxShadow: '0 0 20px rgba(212,196,168,0.2)' }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent2)'; e.currentTarget.style.boxShadow = '0 0 28px rgba(212,196,168,0.35)' }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.boxShadow = '0 0 20px rgba(212,196,168,0.2)' }}
-        >
+        <Button variant="primary" size="lg" className="shrink-0 relative z-10" onClick={() => setCreateOpen(true)}>
           + Create New Font
-        </button>
+        </Button>
       </div>
 
       {/* ── Your Library ─────────────────────────────────────────────────── */}
@@ -56,8 +48,8 @@ export default function DashboardPage() {
         <section className="mb-2">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Your Library</h2>
-              <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+              <h2 className="text-sm font-semibold text-[var(--text)]">Your Library</h2>
+              <p className="text-xs mt-0.5 text-[var(--muted)]">
                 {project.families.length} {project.families.length === 1 ? 'family' : 'families'}
               </p>
             </div>
@@ -72,22 +64,15 @@ export default function DashboardPage() {
 
       {/* Empty state when no families yet */}
       {project.families.length === 0 && (
-        <div
-          className="rounded-xl flex flex-col items-center justify-center py-16 gap-3 mb-4"
-          style={{ border: '1.5px dashed var(--border2)' }}
-        >
-          <p className="text-xs font-medium" style={{ color: 'var(--text)' }}>No fonts yet</p>
-          <p className="text-xs text-center max-w-xs" style={{ color: 'var(--muted)' }}>
+        <Card variant="dashed" className="flex flex-col items-center justify-center py-16 gap-3 mb-4">
+          <p className="text-xs font-medium text-[var(--text)]">No fonts yet</p>
+          <p className="text-xs text-center max-w-xs text-[var(--muted)]">
             Create your first font above, or import one from the Font Library.
           </p>
-          <button
-            onClick={() => setCreateOpen(true)}
-            className="mt-2 text-xs px-4 py-2 rounded-lg font-medium transition-colors"
-            style={{ background: 'var(--surface)', color: 'var(--accent)', border: '1px solid var(--border2)' }}
-          >
+          <Button variant="ghost" size="sm" className="mt-2 text-[var(--accent)] border-[var(--border2)]" onClick={() => setCreateOpen(true)}>
             + Create New Font
-          </button>
-        </div>
+          </Button>
+        </Card>
       )}
 
       {/* ── Discover ─────────────────────────────────────────────────────── */}

@@ -12,6 +12,25 @@
   --muted:    #6b6b6b;
   --accent:   #d4c4a8;
   --accent2:  #e8d9bc;
+
+  /* Accent alpha tints — for chips, badges, hovered borders, glows */
+  --accent-soft:    rgba(212,196,168,0.10);  /* badge bg, button hover bg */
+  --accent-soft2:   rgba(212,196,168,0.15);  /* selected chip / drop-zone glow */
+  --accent-border:  rgba(212,196,168,0.20);  /* badge border, primary glow */
+  --accent-border2: rgba(212,196,168,0.35);  /* hover border, hover glow */
+  --accent-glow:        0 0 20px rgba(212,196,168,0.20);
+  --accent-glow-strong: 0 0 28px rgba(212,196,168,0.35);
+
+  /* Danger (red) tints — for destructive actions */
+  --danger:         #ef4444;
+  --danger-text:    #f87171;
+  --danger-soft:    rgba(239,68,68,0.10);
+  --danger-soft2:   rgba(239,68,68,0.15);
+  --danger-border:  rgba(239,68,68,0.20);
+  --danger-border2: rgba(239,68,68,0.30);
+
+  /* Modal/overlay scrim */
+  --overlay: rgba(0,0,0,0.70);
 }
 
 * { box-sizing: border-box; }

@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { useProjectStore } from '@/lib/store'
 import { useToast } from '@/components/Toast'
 import { getFontBinary } from '@/lib/db'
+import Card from '@/components/ui/Card'
+import Badge from '@/components/ui/Badge'
 import type { FontFamily } from '@/lib/types'
 
 export default function FamilyCard({ family }: { family: FontFamily }) {
@@ -53,25 +55,13 @@ export default function FamilyCard({ family }: { family: FontFamily }) {
   const fontFaceId = `family-${family.id}`
 
   return (
-    <div
+    <Card
       role="button"
       tabIndex={0}
       onClick={handleCardClick}
       onKeyDown={(e) => e.key === 'Enter' && handleCardClick()}
-      className="rounded-xl p-5 flex flex-col gap-4 cursor-pointer relative group transition-all outline-none"
-      style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--border2)',
-        boxShadow: '0 0 0 0 transparent',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = 'var(--accent)'
-        e.currentTarget.style.boxShadow = '0 0 0 1px var(--accent)'
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = 'var(--border2)'
-        e.currentTarget.style.boxShadow = '0 0 0 0 transparent'
-      }}
+      interactive
+      className="p-5 flex flex-col gap-4 relative group outline-none"
     >
       {fontUrl && (
         <style>{`
@@ -82,54 +72,23 @@ export default function FamilyCard({ family }: { family: FontFamily }) {
         `}</style>
       )}
 
-      {/* ── "In Library" badge — top left ────────────────────────────── */}
-      <div
-        className="absolute top-3 left-4 flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full"
-        style={{
-          background: 'rgba(212,196,168,0.1)',
-          color: 'var(--accent)',
-          border: '1px solid rgba(212,196,168,0.2)',
-        }}
-      >
+      {/* ── "In Library" badge ───────────────────────────────────────────── */}
+      <Badge className="absolute top-3 left-4">
         <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
           <path d="M20 6 9 17l-5-5" />
         </svg>
         In Library
-      </div>
+      </Badge>
 
-      {/* ── Remove button — top right, always visible ─────────────────── */}
+      {/* ── Remove button ─────────────────────────────────────────────────── */}
       <button
         onClick={handleRemove}
-        className="absolute top-3 right-3 rounded-md px-2 py-1 text-xs font-medium transition-all z-10"
-        style={
+        className={`absolute top-3 right-3 rounded-md px-2 py-1 text-xs font-medium transition-all z-10 border ${
           confirmDelete
-            ? {
-                background: 'rgba(239,68,68,0.15)',
-                color: '#f87171',
-                border: '1px solid rgba(239,68,68,0.3)',
-              }
-            : {
-                background: 'transparent',
-                color: 'var(--muted)',
-                border: '1px solid transparent',
-              }
-        }
+            ? 'bg-[var(--danger-soft2)] text-[var(--danger-text)] border-[var(--danger-border2)]'
+            : 'bg-transparent text-[var(--muted)] border-transparent hover:bg-[var(--danger-soft)] hover:text-[var(--danger-text)] hover:border-[var(--danger-border)]'
+        }`}
         title={confirmDelete ? 'Click again to confirm' : 'Remove family'}
-        onMouseEnter={(e) => {
-          if (!confirmDelete) {
-            e.currentTarget.style.background = 'rgba(239,68,68,0.1)'
-            e.currentTarget.style.color = '#f87171'
-            e.currentTarget.style.borderColor = 'rgba(239,68,68,0.2)'
-          }
-          e.stopPropagation()
-        }}
-        onMouseLeave={(e) => {
-          if (!confirmDelete) {
-            e.currentTarget.style.background = 'transparent'
-            e.currentTarget.style.color = 'var(--muted)'
-            e.currentTarget.style.borderColor = 'transparent'
-          }
-        }}
       >
         {confirmDelete ? 'Confirm?' : (
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -140,11 +99,8 @@ export default function FamilyCard({ family }: { family: FontFamily }) {
 
       {/* ── Font preview ──────────────────────────────────────────────── */}
       <div
-        className="text-4xl leading-none tracking-tight truncate pt-7 pb-2"
-        style={{
-          fontFamily: fontUrl ? `'${fontFaceId}', serif` : 'serif',
-          color: 'var(--text)',
-        }}
+        className="text-4xl leading-none tracking-tight truncate pt-7 pb-2 text-[var(--text)]"
+        style={{ fontFamily: fontUrl ? `'${fontFaceId}', serif` : 'serif' }}
       >
         Aa Bb Cc
       </div>
@@ -152,29 +108,20 @@ export default function FamilyCard({ family }: { family: FontFamily }) {
       {/* ── Footer row ────────────────────────────────────────────────── */}
       <div className="flex items-end justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-xs font-semibold truncate" style={{ color: 'var(--text)' }}>
-            {family.name}
-          </p>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+          <p className="text-xs font-semibold truncate text-[var(--text)]">{family.name}</p>
+          <p className="text-xs mt-0.5 text-[var(--muted)]">
             {family.styles.length} style{family.styles.length !== 1 ? 's' : ''}
           </p>
         </div>
 
-        {/* Edit indicator — bottom right */}
-        <div
-          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md shrink-0 pointer-events-none"
-          style={{
-            background: 'var(--surface2)',
-            color: 'var(--accent)',
-            border: '1px solid var(--border2)',
-          }}
-        >
+        {/* Edit indicator */}
+        <div className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md shrink-0 pointer-events-none bg-[var(--surface2)] text-[var(--accent)] border border-[var(--border2)]">
           Edit
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
             <path d="M5 12h14M12 5l7 7-7 7" />
           </svg>
         </div>
       </div>
-    </div>
+    </Card>
   )
 }

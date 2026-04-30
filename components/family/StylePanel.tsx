@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { useProjectStore } from '@/lib/store'
 import { useToast } from '@/components/Toast'
+import Button from '@/components/ui/Button'
+import Badge from '@/components/ui/Badge'
 import type { FontFamily, FontStyle } from '@/lib/types'
 
 const WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900]
@@ -98,7 +100,7 @@ export default function StylePanel({ family, activeStyleId, onSelectStyle }: Pro
               <div className="flex items-center gap-1.5">
                 <p className="text-xs font-medium">{style.name}</p>
                 {!style.sourceFontId && (
-                  <span className="text-[9px] px-1 py-0.5 rounded" style={{ background: 'rgba(212,196,168,0.1)', color: 'var(--accent)' }}>scratch</span>
+                  <Badge className="text-[9px] px-1 py-0.5 rounded">scratch</Badge>
                 )}
               </div>
               <p className="text-xs mt-0.5" style={{ color: 'var(--muted)', fontWeight: 400 }}>
@@ -167,18 +169,19 @@ export default function StylePanel({ family, activeStyleId, onSelectStyle }: Pro
               <span className="text-xs" style={{ color: 'var(--text)' }}>Italic</span>
             </label>
 
-            <button
+            <Button
+              variant="danger"
+              size="sm"
+              className="w-full"
               onClick={() => {
                 if (confirm(`Remove "${activeStyle.name}" from this family?`)) {
                   removeStyle(family.id, activeStyle.id)
                   showToast(`"${activeStyle.name}" removed`, 'success')
                 }
               }}
-              className="text-xs px-3 py-1.5 rounded-md w-full transition-colors"
-              style={{ color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}
             >
               Remove style
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -187,7 +190,7 @@ export default function StylePanel({ family, activeStyleId, onSelectStyle }: Pro
       {dup.open && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: 'rgba(0,0,0,0.7)' }}
+          style={{ background: 'var(--overlay)' }}
           onClick={(e) => { if (e.target === e.currentTarget) setDup((d) => ({ ...d, open: false })) }}
         >
           <div className="rounded-2xl w-80 overflow-hidden shadow-2xl"
@@ -224,17 +227,9 @@ export default function StylePanel({ family, activeStyleId, onSelectStyle }: Pro
                 </select>
               </div>
             </div>
-            <div className="px-5 py-3 flex justify-between" style={{ borderTop: '1px solid var(--border)' }}>
-              <button
-                onClick={() => setDup((d) => ({ ...d, open: false }))}
-                className="text-xs px-3 py-1.5 rounded-lg"
-                style={{ color: 'var(--muted)', border: '1px solid var(--border)' }}
-              >Cancel</button>
-              <button
-                onClick={handleDuplicate}
-                className="text-xs px-4 py-1.5 rounded-lg font-medium"
-                style={{ background: 'var(--accent)', color: '#0c0c0c' }}
-              >Duplicate</button>
+            <div className="px-5 py-3 flex justify-between border-t border-[var(--border)]">
+              <Button variant="ghost" size="sm" onClick={() => setDup((d) => ({ ...d, open: false }))}>Cancel</Button>
+              <Button variant="primary" size="sm" onClick={handleDuplicate}>Duplicate</Button>
             </div>
           </div>
         </div>

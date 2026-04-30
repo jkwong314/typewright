@@ -6,6 +6,8 @@ import { useProjectStore } from '@/lib/store'
 import { saveFontBinary } from '@/lib/db'
 import { parseFont } from '@/lib/font-parser'
 import { useToast } from '@/components/Toast'
+import Button from '@/components/ui/Button'
+import Card from '@/components/ui/Card'
 import type { GoogleFontResult } from '@/lib/types'
 
 const CATEGORIES: { id: string; label: string }[] = [
@@ -37,7 +39,6 @@ export default function FontRecommendations() {
     fetch(`/api/google-fonts?${params}`)
       .then((r) => r.ok ? r.json() : Promise.reject())
       .then((data: GoogleFontResult[]) => {
-        // Filter already-imported, show 9
         setFonts(data.filter((f) => !existingNames.has(f.family.toLowerCase())).slice(0, 12))
       })
       .catch(() => setError(true))
@@ -73,26 +74,16 @@ export default function FontRecommendations() {
     }
   }
 
-  // Don't render the section at all if API key is missing
   if (error) return null
 
   return (
-    <section className="mt-12 pt-10" style={{ borderTop: '1px solid var(--border)' }}>
-      {/* Section header */}
+    <section className="mt-12 pt-10 border-t border-[var(--border)]">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
-            Discover Fonts
-          </h2>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-            From Google Fonts — import any to start editing
-          </p>
+          <h2 className="text-sm font-semibold text-[var(--text)]">Discover Fonts</h2>
+          <p className="text-xs mt-0.5 text-[var(--muted)]">From Google Fonts — import any to start editing</p>
         </div>
-        <Link
-          href="/library?tab=google"
-          className="text-xs flex items-center gap-1 transition-colors"
-          style={{ color: 'var(--accent)' }}
-        >
+        <Link href="/library?tab=google" className="text-xs flex items-center gap-1 text-[var(--accent)] transition-colors">
           Browse all
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
             <path d="M5 12h14M12 5l7 7-7 7" />
@@ -100,33 +91,24 @@ export default function FontRecommendations() {
         </Link>
       </div>
 
-      {/* Category pills */}
       <div className="flex gap-1.5 mb-5">
         {CATEGORIES.map((cat) => (
-          <button
+          <Button
             key={cat.id}
+            variant="pill"
+            size="sm"
+            selected={category === cat.id}
             onClick={() => setCategory(cat.id)}
-            className="px-3 py-1 rounded-full text-xs font-medium transition-colors"
-            style={
-              category === cat.id
-                ? { background: 'var(--accent)', color: '#0c0c0c' }
-                : { background: 'var(--surface)', color: 'var(--muted)', border: '1px solid var(--border)' }
-            }
           >
             {cat.label}
-          </button>
+          </Button>
         ))}
       </div>
 
-      {/* Grid */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div
-              key={i}
-              className="rounded-xl p-5 h-32 animate-pulse"
-              style={{ background: 'var(--bg)', border: '1px dashed var(--border2)' }}
-            />
+            <Card key={i} variant="dashed" className="p-5 h-32 animate-pulse" />
           ))}
         </div>
       ) : (
@@ -134,20 +116,9 @@ export default function FontRecommendations() {
           {fonts.map((font) => {
             const isImporting = importing === font.family
             return (
-              <div
-                key={font.family}
-                className="rounded-xl p-5 flex flex-col gap-3 transition-all"
-                style={{
-                  background: 'var(--bg)',
-                  border: '1px dashed var(--border2)',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'rgba(212,196,168,0.35)')}
-                onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border2)')}
-              >
-                {/* Load font for preview via Google Fonts CSS */}
+              <Card key={font.family} variant="dashed" className="p-5 flex flex-col gap-3 transition-all hover:border-[var(--accent-border2)]">
                 <style>{`@import url('https://fonts.googleapis.com/css2?family=${encodeURIComponent(font.family)}&display=swap');`}</style>
 
-                {/* Preview text — slightly muted to feel "unowned" */}
                 <div
                   className="text-4xl leading-none tracking-tight truncate py-2"
                   style={{ fontFamily: `'${font.family}', serif`, color: 'rgba(240,236,230,0.5)' }}
@@ -155,26 +126,18 @@ export default function FontRecommendations() {
                   Aa Bb Cc
                 </div>
 
-                {/* Footer */}
                 <div className="flex items-end justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold truncate" style={{ color: 'var(--text)' }}>
-                      {font.family}
-                    </p>
-                    <p className="text-[10px] mt-0.5 capitalize" style={{ color: 'var(--muted)' }}>
+                    <p className="text-xs font-semibold truncate text-[var(--text)]">{font.family}</p>
+                    <p className="text-[10px] mt-0.5 capitalize text-[var(--muted)]">
                       {font.category?.replace('-', ' ')} · {font.variants.length} style{font.variants.length !== 1 ? 's' : ''}
                     </p>
                   </div>
-                  <button
-                    onClick={() => importFont(font)}
-                    disabled={isImporting}
-                    className="text-xs px-3 py-1.5 rounded-md shrink-0 font-medium transition-all disabled:opacity-40"
-                    style={{ background: 'var(--accent)', color: '#0c0c0c' }}
-                  >
+                  <Button variant="primary" size="sm" disabled={isImporting} onClick={() => importFont(font)}>
                     {isImporting ? '…' : '+ Import'}
-                  </button>
+                  </Button>
                 </div>
-              </div>
+              </Card>
             )
           })}
         </div>

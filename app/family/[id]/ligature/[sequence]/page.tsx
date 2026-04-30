@@ -73,8 +73,7 @@ export default function LigatureEditorPage({ params }: { params: { id: string; s
           <span>Ligatures</span>
           <span>/</span>
           <span className="font-serif italic text-sm" style={{ color: 'var(--text)' }}>{sequence}</span>
-          <span className="px-1.5 py-0.5 rounded text-[10px]"
-            style={{ background: 'rgba(212,196,168,0.12)', color: 'var(--accent)' }}>ligature</span>
+          <span className="px-1.5 py-0.5 rounded text-[10px] bg-[var(--accent-soft)] text-[var(--accent)]">ligature</span>
         </div>
       </div>
 

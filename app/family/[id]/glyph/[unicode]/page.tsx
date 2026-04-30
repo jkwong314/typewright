@@ -168,8 +168,7 @@ export default function GlyphEditorPage({ params }: { params: { id: string; unic
             {isScratch ? String.fromCodePoint(codePoint) : `U+${unicode} ${String.fromCodePoint(codePoint)}`}
           </span>
           {isModified && (
-            <span className="px-1.5 py-0.5 rounded text-[10px]"
-              style={{ background: 'rgba(212,196,168,0.12)', color: 'var(--accent)' }}>
+            <span className="px-1.5 py-0.5 rounded text-[10px] bg-[var(--accent-soft)] text-[var(--accent)]">
               {isScratch ? 'drawn' : 'modified'}
             </span>
           )}

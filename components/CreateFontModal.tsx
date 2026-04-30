@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useProjectStore } from '@/lib/store'
 import { useToast } from '@/components/Toast'
+import Button from '@/components/ui/Button'
 import type { FontMetrics } from '@/lib/types'
 
 // Unicode ranges for character set presets
@@ -220,7 +221,7 @@ export default function CreateFontModal({ onClose }: { onClose: () => void }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.75)' }}
+      style={{ background: 'var(--overlay)' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
@@ -252,7 +253,7 @@ export default function CreateFontModal({ onClose }: { onClose: () => void }) {
                 onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border2)')}
               >
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg"
-                  style={{ background: 'rgba(212,196,168,0.1)', color: 'var(--accent)' }}>
+                  style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
                   ✏️
                 </div>
                 <div>
@@ -278,7 +279,7 @@ export default function CreateFontModal({ onClose }: { onClose: () => void }) {
                 onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border2)')}
               >
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg"
-                  style={{ background: 'rgba(212,196,168,0.1)', color: 'var(--accent)' }}>
+                  style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
                   🖼️
                 </div>
                 <div>
@@ -346,7 +347,7 @@ export default function CreateFontModal({ onClose }: { onClose: () => void }) {
                       className="w-full rounded-lg py-8 flex flex-col items-center gap-2 transition-all cursor-pointer outline-none"
                       style={{
                         border: isDragging ? '1.5px solid var(--accent)' : '1.5px dashed var(--border2)',
-                        background: isDragging ? 'rgba(212,196,168,0.06)' : 'transparent',
+                        background: isDragging ? 'var(--accent-soft)' : 'transparent',
                         color: isDragging ? 'var(--accent)' : 'var(--muted)',
                         boxShadow: isDragging ? '0 0 0 4px rgba(212,196,168,0.1)' : 'none',
                       }}
@@ -439,7 +440,7 @@ export default function CreateFontModal({ onClose }: { onClose: () => void }) {
                         onClick={() => toggleSet(cs.id)}
                         className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
                         style={active
-                          ? { background: 'rgba(212,196,168,0.15)', color: 'var(--accent)', border: '1px solid var(--accent)' }
+                          ? { background: 'var(--accent-soft2)', color: 'var(--accent)', border: '1px solid var(--accent)' }
                           : { background: 'var(--surface2)', color: 'var(--muted)', border: '1px solid var(--border)' }
                         }
                       >
@@ -459,22 +460,14 @@ export default function CreateFontModal({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* Footer */}
-        <div className="px-7 py-4 flex items-center justify-between shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
-          <button
-            onClick={step === 'choose' ? onClose : () => setStep('choose')}
-            className="text-xs px-4 py-2 rounded-lg transition-colors"
-            style={{ color: 'var(--muted)', border: '1px solid var(--border)' }}
-          >
+        <div className="px-7 py-4 flex items-center justify-between shrink-0 border-t border-[var(--border)]">
+          <Button variant="ghost" size="md" onClick={step === 'choose' ? onClose : () => setStep('choose')}>
             {step === 'choose' ? 'Cancel' : '← Back'}
-          </button>
+          </Button>
           {step === 'configure' && (
-            <button
-              onClick={handleCreate}
-              className="text-xs px-5 py-2 rounded-lg font-semibold transition-all"
-              style={{ background: 'var(--accent)', color: '#0c0c0c' }}
-            >
+            <Button variant="primary" size="md" onClick={handleCreate}>
               Create Font →
-            </button>
+            </Button>
           )}
         </div>
       </div>

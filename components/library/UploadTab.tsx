@@ -5,6 +5,8 @@ import { useProjectStore } from '@/lib/store'
 import { saveFontBinary } from '@/lib/db'
 import { parseFont } from '@/lib/font-parser'
 import { useToast } from '@/components/Toast'
+import Button from '@/components/ui/Button'
+import Card from '@/components/ui/Card'
 
 interface StagedFont {
   id: string
@@ -26,8 +28,6 @@ export default function UploadTab() {
 
   const processFiles = useCallback(async (files: FileList | File[]) => {
     setLoading(true)
-    const accepted = ['font/ttf', 'font/otf', 'font/woff', 'font/woff2',
-      'application/x-font-ttf', 'application/x-font-opentype', '']
     for (const file of Array.from(files)) {
       const ext = file.name.split('.').pop()?.toLowerCase()
       if (!['ttf', 'otf', 'woff', 'woff2'].includes(ext ?? '')) {
@@ -86,21 +86,19 @@ export default function UploadTab() {
   return (
     <div className="space-y-6">
       {/* Drop zone */}
-      <div
+      <Card
+        variant="dashed"
+        active={dragging}
         onClick={() => fileRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
-        className="rounded-xl flex flex-col items-center justify-center gap-3 cursor-pointer transition-all py-14"
-        style={{
-          border: `1.5px dashed ${dragging ? 'var(--accent)' : 'var(--border2)'}`,
-          background: dragging ? 'rgba(212,196,168,0.04)' : 'var(--surface)',
-        }}
+        className="flex flex-col items-center justify-center gap-3 cursor-pointer py-14"
       >
-        <div className="text-2xl" style={{ color: 'var(--muted)' }}>↑</div>
+        <div className="text-2xl text-[var(--muted)]">↑</div>
         <div className="text-center">
-          <p className="text-xs font-medium" style={{ color: 'var(--text)' }}>Drop font files here</p>
-          <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>TTF · OTF · WOFF · WOFF2</p>
+          <p className="text-xs font-medium text-[var(--text)]">Drop font files here</p>
+          <p className="text-xs mt-1 text-[var(--muted)]">TTF · OTF · WOFF · WOFF2</p>
         </div>
         <input
           ref={fileRef}
@@ -110,16 +108,14 @@ export default function UploadTab() {
           className="hidden"
           onChange={(e) => e.target.files && processFiles(e.target.files)}
         />
-      </div>
+      </Card>
 
-      {loading && (
-        <p className="text-xs text-center" style={{ color: 'var(--muted)' }}>Parsing fonts…</p>
-      )}
+      {loading && <p className="text-xs text-center text-[var(--muted)]">Parsing fonts…</p>}
 
       {/* Staged fonts */}
       {staged.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-medium" style={{ color: 'var(--muted)' }}>READY TO ADD</p>
+          <p className="text-xs font-medium text-[var(--muted)]">READY TO ADD</p>
           {staged.map((font) => {
             const matchingFamily = project.families.find(
               (f) => f.name.toLowerCase() === font.familyName.toLowerCase()
@@ -127,34 +123,25 @@ export default function UploadTab() {
             return (
               <div
                 key={font.id}
-                className="rounded-lg px-4 py-3 flex items-center justify-between gap-4"
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+                className="rounded-lg px-4 py-3 flex items-center justify-between gap-4 bg-[var(--surface)] border border-[var(--border)]"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium truncate" style={{ color: 'var(--text)' }}>
+                  <p className="text-xs font-medium truncate text-[var(--text)]">
                     {font.familyName} — {font.styleName}
                   </p>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+                  <p className="text-xs mt-0.5 text-[var(--muted)]">
                     {font.weight} · {font.glyphCount} glyphs
                   </p>
                 </div>
                 <div className="flex gap-2 shrink-0">
                   {matchingFamily && (
-                    <button
-                      onClick={() => addToFamily(font, matchingFamily.id)}
-                      className="text-xs px-3 py-1.5 rounded-md transition-colors"
-                      style={{ background: 'var(--surface2)', color: 'var(--accent)' }}
-                    >
+                    <Button variant="subtle" size="sm" onClick={() => addToFamily(font, matchingFamily.id)}>
                       Add to {matchingFamily.name}
-                    </button>
+                    </Button>
                   )}
-                  <button
-                    onClick={() => addToFamily(font)}
-                    className="text-xs px-3 py-1.5 rounded-md transition-colors"
-                    style={{ background: 'var(--accent)', color: '#0c0c0c' }}
-                  >
+                  <Button variant="primary" size="sm" onClick={() => addToFamily(font)}>
                     New family
-                  </button>
+                  </Button>
                 </div>
               </div>
             )

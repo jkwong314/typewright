@@ -11,7 +11,7 @@ export default function DashboardPage() {
   const [createOpen, setCreateOpen] = useState(false)
 
   return (
-    <div className="min-h-screen p-8 max-w-5xl">
+    <div className="min-h-screen p-8 max-w-[1600px]">
 
       {/* ── Hero CTA ─────────────────────────────────────────────────────── */}
       <div
@@ -62,7 +62,7 @@ export default function DashboardPage() {
               </p>
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {project.families.map((family) => (
               <FamilyCard key={family.id} family={family} />
             ))}

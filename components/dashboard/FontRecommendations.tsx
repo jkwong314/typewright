@@ -38,7 +38,7 @@ export default function FontRecommendations() {
       .then((r) => r.ok ? r.json() : Promise.reject())
       .then((data: GoogleFontResult[]) => {
         // Filter already-imported, show 9
-        setFonts(data.filter((f) => !existingNames.has(f.family.toLowerCase())).slice(0, 9))
+        setFonts(data.filter((f) => !existingNames.has(f.family.toLowerCase())).slice(0, 12))
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false))
@@ -120,8 +120,8 @@ export default function FontRecommendations() {
 
       {/* Grid */}
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
             <div
               key={i}
               className="rounded-xl p-5 h-32 animate-pulse"
@@ -130,7 +130,7 @@ export default function FontRecommendations() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {fonts.map((font) => {
             const isImporting = importing === font.family
             return (

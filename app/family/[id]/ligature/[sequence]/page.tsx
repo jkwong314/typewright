@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useProjectStore } from '@/lib/store'
 import GlyphCanvas from '@/components/glyph-editor/GlyphCanvas'
 import GlyphSidePanel from '@/components/glyph-editor/GlyphSidePanel'
-import type { Contour } from '@/lib/types'
+import type { Contour, ReferenceImage } from '@/lib/types'
 
 export default function LigatureEditorPage({ params }: { params: { id: string; sequence: string } }) {
   const { project, setLigature } = useProjectStore()
@@ -18,36 +18,36 @@ export default function LigatureEditorPage({ params }: { params: { id: string; s
   const style  = family?.styles.find((s) => s.id === styleId) ?? family?.styles[0]
   const ligature = style?.ligatures?.[sequence]
 
-  const [contours,     setContours]     = useState<Contour[]>(ligature?.contours ?? [])
-  const [advanceWidth, setAdvanceWidth] = useState(ligature?.advanceWidth ?? style?.metrics.unitsPerEm ?? 500)
-  const [refImageUrl,  setRefImageUrl]  = useState<string | undefined>(ligature?.referenceImageUrl)
+  const [contours,        setContours]        = useState<Contour[]>(ligature?.contours ?? [])
+  const [advanceWidth,    setAdvanceWidth]    = useState(ligature?.advanceWidth ?? style?.metrics.unitsPerEm ?? 500)
+  const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>(ligature?.referenceImages ?? [])
 
   useEffect(() => {
     if (ligature) {
       setContours(ligature.contours)
       setAdvanceWidth(ligature.advanceWidth)
-      setRefImageUrl(ligature.referenceImageUrl)
+      setReferenceImages(ligature.referenceImages ?? [])
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const save = useCallback((c: Contour[], aw: number, ref?: string) => {
+  const save = useCallback((c: Contour[], aw: number, imgs: ReferenceImage[]) => {
     if (!family || !style) return
-    setLigature(family.id, style.id, { unicode: sequence, advanceWidth: aw, contours: c, referenceImageUrl: ref })
+    setLigature(family.id, style.id, { unicode: sequence, advanceWidth: aw, contours: c, referenceImages: imgs })
   }, [family, style, sequence, setLigature])
 
   const handleChange = useCallback((newContours: Contour[]) => {
     setContours(newContours)
-    save(newContours, advanceWidth, refImageUrl)
-  }, [advanceWidth, refImageUrl, save])
+    save(newContours, advanceWidth, referenceImages)
+  }, [advanceWidth, referenceImages, save])
 
   const handleAdvanceWidthChange = useCallback((val: number) => {
     setAdvanceWidth(val)
-    save(contours, val, refImageUrl)
-  }, [contours, refImageUrl, save])
+    save(contours, val, referenceImages)
+  }, [contours, referenceImages, save])
 
-  const handleRefImageChange = useCallback((url: string | undefined) => {
-    setRefImageUrl(url)
-    save(contours, advanceWidth, url)
+  const handleReferenceImagesChange = useCallback((images: ReferenceImage[]) => {
+    setReferenceImages(images)
+    save(contours, advanceWidth, images)
   }, [contours, advanceWidth, save])
 
   if (!family || !style) {
@@ -84,7 +84,7 @@ export default function LigatureEditorPage({ params }: { params: { id: string; s
             advanceWidth={advanceWidth}
             metrics={style.metrics}
             onChange={handleChange}
-            referenceImageUrl={refImageUrl}
+            referenceImages={referenceImages}
           />
         </div>
         <GlyphSidePanel
@@ -93,10 +93,10 @@ export default function LigatureEditorPage({ params }: { params: { id: string; s
           advanceWidth={advanceWidth}
           contours={contours}
           style={style}
-          referenceImageUrl={refImageUrl}
+          referenceImages={referenceImages}
           onAdvanceWidthChange={handleAdvanceWidthChange}
-          onReset={() => { setContours([]); save([], advanceWidth, refImageUrl) }}
-          onReferenceImageChange={handleRefImageChange}
+          onReset={() => { setContours([]); save([], advanceWidth, referenceImages) }}
+          onReferenceImagesChange={handleReferenceImagesChange}
           isModified={contours.length > 0}
           isScratch
         />

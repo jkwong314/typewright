@@ -8,11 +8,23 @@ export interface Contour {
   points: BezierPoint[]
 }
 
+export interface ReferenceImage {
+  id: string
+  url: string                  // data URL
+  visible: boolean
+  opacity: number              // 0..1
+  x: number                    // top-left in font units
+  y: number                    // top-left in font units
+  width: number                // in font units
+  height: number               // in font units
+  rotation: number             // degrees, clockwise in screen space
+}
+
 export interface GlyphOverride {
   unicode: string
   advanceWidth: number
   contours: Contour[]
-  referenceImageUrl?: string   // per-glyph tracing reference
+  referenceImages?: ReferenceImage[]
 }
 
 export interface KerningPair {

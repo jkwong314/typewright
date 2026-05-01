@@ -1,9 +1,49 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Project, FontFamily, FontStyle, FontMetrics, KerningPair, GlyphOverride } from './types'
+import type { Project, FontFamily, FontStyle, FontMetrics, KerningPair, GlyphOverride, ReferenceImage } from './types'
+import { CANVAS_MARGIN } from './reference-image'
 
 function generateId(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
+}
+
+function migrateOverride(o: any, metrics: FontMetrics): GlyphOverride {
+  if (!o) return o
+  if (o.referenceImages || !o.referenceImageUrl) {
+    const { referenceImageUrl: _drop, ...rest } = o
+    return rest as GlyphOverride
+  }
+  const ref: ReferenceImage = {
+    id: 'img_' + Math.random().toString(36).slice(2, 10),
+    url: o.referenceImageUrl,
+    visible: true,
+    opacity: 0.4,
+    x: -CANVAS_MARGIN,
+    y: metrics.descender - CANVAS_MARGIN,
+    width: o.advanceWidth + CANVAS_MARGIN * 2,
+    height: metrics.ascender - metrics.descender + CANVAS_MARGIN * 2,
+    rotation: 0,
+  }
+  const { referenceImageUrl: _drop, ...rest } = o
+  return { ...(rest as GlyphOverride), referenceImages: [ref] }
+}
+
+function migrateProject(p: any): Project {
+  if (!p?.families) return p ?? { families: [] }
+  return {
+    families: p.families.map((f: any) => ({
+      ...f,
+      styles: (f.styles ?? []).map((st: any) => ({
+        ...st,
+        glyphOverrides: Object.fromEntries(
+          Object.entries(st.glyphOverrides ?? {}).map(([k, v]) => [k, migrateOverride(v, st.metrics)]),
+        ),
+        ligatures: Object.fromEntries(
+          Object.entries(st.ligatures ?? {}).map(([k, v]) => [k, migrateOverride(v, st.metrics)]),
+        ),
+      })),
+    })),
+  }
 }
 
 const defaultMetrics: FontMetrics = {
@@ -285,6 +325,14 @@ export const useProjectStore = create<ProjectStore>()(
     }),
     {
       name: 'typproject',
+      version: 1,
+      migrate: (persistedState: unknown, version: number) => {
+        if (version < 1 && persistedState && typeof persistedState === 'object') {
+          const state = persistedState as { project?: unknown }
+          return { ...state, project: migrateProject(state.project) }
+        }
+        return persistedState
+      },
       partialize: (state) => ({ project: state.project }),
     }
   )

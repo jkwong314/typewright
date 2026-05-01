@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useProjectStore } from '@/lib/store'
 import { useToast } from '@/components/Toast'
 import Button from '@/components/ui/Button'
+import { newReferenceImage } from '@/lib/reference-image'
 import type { FontMetrics } from '@/lib/types'
 
 // Unicode ranges for character set presets
@@ -202,11 +203,12 @@ export default function CreateFontModal({ onClose }: { onClose: () => void }) {
       try { sessionStorage.setItem(`refimg-${familyId}`, refImage) } catch {}
 
       // Pre-create the override on the first glyph so the editor has it immediately
+      const aw = metrics.unitsPerEm / 2
       setGlyphOverride(familyId, styleId, {
         unicode: hex,
-        advanceWidth: metrics.unitsPerEm / 2,
+        advanceWidth: aw,
         contours: [],
-        referenceImageUrl: refImage,
+        referenceImages: [newReferenceImage(refImage, aw, metrics)],
       })
 
       showToast(`"${trimmed}" created — start tracing!`, 'success')

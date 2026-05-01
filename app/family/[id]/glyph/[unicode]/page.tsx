@@ -7,7 +7,8 @@ import { useProjectStore } from '@/lib/store'
 import { useFontData } from '@/lib/hooks/useFontData'
 import GlyphCanvas from '@/components/glyph-editor/GlyphCanvas'
 import GlyphSidePanel from '@/components/glyph-editor/GlyphSidePanel'
-import type { Contour } from '@/lib/types'
+import { newReferenceImage } from '@/lib/reference-image'
+import type { Contour, ReferenceImage } from '@/lib/types'
 
 function glyphToContours(glyph: any): Contour[] {
   const contours: Contour[] = []
@@ -57,7 +58,7 @@ export default function GlyphEditorPage({ params }: { params: { id: string; unic
   const [glyphName,          setGlyphName]          = useState('')
   const [sourceContours,     setSourceContours]     = useState<Contour[]>([])
   const [sourceAdvanceWidth, setSourceAdvanceWidth] = useState(500)
-  const [referenceImageUrl,  setReferenceImageUrl]  = useState<string | undefined>()
+  const [referenceImages,    setReferenceImages]    = useState<ReferenceImage[]>([])
 
   const unicode   = params.unicode.toUpperCase()
   const codePoint = parseInt(unicode, 16)
@@ -73,15 +74,17 @@ export default function GlyphEditorPage({ params }: { params: { id: string; unic
       if (override) {
         setContours(override.contours)
         setAdvanceWidth(override.advanceWidth)
-        setReferenceImageUrl(override.referenceImageUrl)
+        setReferenceImages(override.referenceImages ?? [])
       } else {
+        const aw = style.metrics.unitsPerEm / 2
         setContours([])
-        setAdvanceWidth(style.metrics.unitsPerEm / 2)
-        // Check session storage for global family reference image
+        setAdvanceWidth(aw)
+        // Hydrate global family reference image (legacy single URL)
         try {
           const stored = sessionStorage.getItem(`refimg-${family?.id}`)
-          if (stored) setReferenceImageUrl(stored)
-        } catch {}
+          if (stored) setReferenceImages([newReferenceImage(stored, aw, style.metrics)])
+          else setReferenceImages([])
+        } catch { setReferenceImages([]) }
       }
       return
     }
@@ -98,10 +101,11 @@ export default function GlyphEditorPage({ params }: { params: { id: string; unic
     if (override) {
       setContours(override.contours)
       setAdvanceWidth(override.advanceWidth)
-      setReferenceImageUrl(override.referenceImageUrl)
+      setReferenceImages(override.referenceImages ?? [])
     } else {
       setContours(srcContours)
       setAdvanceWidth(srcAW)
+      setReferenceImages([])
     }
   }, [font, style, unicode, codePoint, isScratch, family?.id])
 
@@ -112,21 +116,20 @@ export default function GlyphEditorPage({ params }: { params: { id: string; unic
       unicode,
       advanceWidth,
       contours: newContours,
-      referenceImageUrl,
+      referenceImages,
     })
-  }, [family, style, unicode, advanceWidth, referenceImageUrl, setGlyphOverride])
+  }, [family, style, unicode, advanceWidth, referenceImages, setGlyphOverride])
 
   const handleAdvanceWidthChange = useCallback((val: number) => {
     if (!family || !style) return
     setAdvanceWidth(val)
-    setGlyphOverride(family.id, style.id, { unicode, advanceWidth: val, contours, referenceImageUrl })
-  }, [family, style, unicode, contours, referenceImageUrl, setGlyphOverride])
+    setGlyphOverride(family.id, style.id, { unicode, advanceWidth: val, contours, referenceImages })
+  }, [family, style, unicode, contours, referenceImages, setGlyphOverride])
 
-  const handleReferenceImageChange = useCallback((url: string | undefined) => {
+  const handleReferenceImagesChange = useCallback((images: ReferenceImage[]) => {
     if (!family || !style) return
-    setReferenceImageUrl(url)
-    // Persist to current override
-    setGlyphOverride(family.id, style.id, { unicode, advanceWidth, contours, referenceImageUrl: url })
+    setReferenceImages(images)
+    setGlyphOverride(family.id, style.id, { unicode, advanceWidth, contours, referenceImages: images })
   }, [family, style, unicode, advanceWidth, contours, setGlyphOverride])
 
   const handleReset = useCallback(() => {
@@ -188,7 +191,7 @@ export default function GlyphEditorPage({ params }: { params: { id: string; unic
               advanceWidth={advanceWidth}
               metrics={style.metrics}
               onChange={handleChange}
-              referenceImageUrl={referenceImageUrl}
+              referenceImages={referenceImages}
               defaultMode={isScratch && contours.length === 0 ? 'pen' : 'select'}
             />
           )}
@@ -200,10 +203,10 @@ export default function GlyphEditorPage({ params }: { params: { id: string; unic
           advanceWidth={advanceWidth}
           contours={contours}
           style={style}
-          referenceImageUrl={referenceImageUrl}
+          referenceImages={referenceImages}
           onAdvanceWidthChange={handleAdvanceWidthChange}
           onReset={handleReset}
-          onReferenceImageChange={handleReferenceImageChange}
+          onReferenceImagesChange={handleReferenceImagesChange}
           isModified={isModified}
           isScratch={isScratch}
         />

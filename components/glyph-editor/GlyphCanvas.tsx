@@ -2,7 +2,7 @@
 
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { contoursToPathD } from '@/lib/font-parser'
-import type { Contour, BezierPoint } from '@/lib/types'
+import type { Contour, BezierPoint, ReferenceImage } from '@/lib/types'
 
 type EditorMode = 'select' | 'pen'
 
@@ -11,7 +11,7 @@ interface Props {
   advanceWidth: number
   metrics: { ascender: number; descender: number; unitsPerEm: number; capHeight: number; xHeight: number }
   onChange: (contours: Contour[]) => void
-  referenceImageUrl?: string
+  referenceImages?: ReferenceImage[]
   defaultMode?: EditorMode
 }
 
@@ -27,7 +27,7 @@ interface DragState {
 // Distance in font units below which we snap to the first pen point to close a contour
 const CLOSE_SNAP = 14
 
-export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange, referenceImageUrl, defaultMode }: Props) {
+export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange, referenceImages, defaultMode }: Props) {
   const svgRef        = useRef<SVGSVGElement>(null)
   const contoursRef   = useRef<Contour[]>(contours)
   const dragRef       = useRef<DragState | null>(null)
@@ -37,7 +37,6 @@ export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange,
   const [localContours,  setLocalContours]  = useState<Contour[]>(contours)
   const [zoom,           setZoom]           = useState(1)
   const [mode,           setMode]           = useState<EditorMode>(defaultMode ?? 'select')
-  const [imageOpacity,   setImageOpacity]   = useState(0.4)
 
   // Pen tool state
   const [penContour,   setPenContour]   = useState<BezierPoint[]>([])   // points placed so far
@@ -347,22 +346,8 @@ export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange,
         )}
       </div>
 
-      {/* ── Zoom + image opacity controls ─────────────────────────────── */}
+      {/* ── Zoom controls ─────────────────────────────────────────────── */}
       <div className="absolute top-4 right-4 flex gap-1 z-10">
-        {referenceImageUrl && (
-          <div className="flex items-center gap-1.5 mr-2">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ color: 'var(--muted)' }}>
-              <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
-            </svg>
-            <input
-              type="range" min={0.05} max={0.6} step={0.05}
-              value={imageOpacity}
-              onChange={(e) => setImageOpacity(Number(e.target.value))}
-              className="w-20"
-              title="Reference image opacity"
-            />
-          </div>
-        )}
         {[{ label: '−', action: () => setZoom((z) => Math.max(0.3, z - 0.15)) },
           { label: '+', action: () => setZoom((z) => Math.min(3, z + 0.15)) }
         ].map(({ label, action }) => (
@@ -397,19 +382,26 @@ export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange,
         }}
       >
         <g transform="scale(1,-1)">
-          {/* ── Reference image overlay — fills entire canvas viewBox ── */}
-          {referenceImageUrl && (
-            <image
-              href={referenceImageUrl}
-              x={-margin}
-              y={descender - margin}
-              width={advanceWidth + margin * 2}
-              height={totalH + margin * 2}
-              preserveAspectRatio="xMidYMid meet"
-              opacity={imageOpacity}
-              style={{ pointerEvents: 'none' }}
-            />
-          )}
+          {/* ── Reference image overlays (visible only) ─────────────── */}
+          {referenceImages?.filter((img) => img.visible).map((img) => {
+            const cx = img.x + img.width / 2
+            const cy = img.y + img.height / 2
+            const transform = img.rotation ? `rotate(${img.rotation} ${cx} ${cy})` : undefined
+            return (
+              <image
+                key={img.id}
+                href={img.url}
+                x={img.x}
+                y={img.y}
+                width={img.width}
+                height={img.height}
+                preserveAspectRatio="xMidYMid meet"
+                opacity={img.opacity}
+                transform={transform}
+                style={{ pointerEvents: 'none' }}
+              />
+            )
+          })}
 
           {/* ── Guide lines ─────────────────────────────────────────── */}
           <rect x={0} y={-ascender} width={advanceWidth} height={totalH} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={1} />

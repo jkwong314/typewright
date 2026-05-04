@@ -2,9 +2,14 @@
 
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { contoursToPathD } from '@/lib/font-parser'
+import {
+  applyMove, applyResize, applyRotate,
+  handleWorldPos, rotateHandleWorldPos, imageCenter,
+  type HandleId, type Pt,
+} from '@/lib/image-transform'
 import type { Contour, BezierPoint, ReferenceImage } from '@/lib/types'
 
-type EditorMode = 'select' | 'pen'
+type EditorMode = 'select' | 'pen' | 'image'
 
 interface Props {
   contours: Contour[]
@@ -12,6 +17,7 @@ interface Props {
   metrics: { ascender: number; descender: number; unitsPerEm: number; capHeight: number; xHeight: number }
   onChange: (contours: Contour[]) => void
   referenceImages?: ReferenceImage[]
+  onReferenceImagesChange?: (images: ReferenceImage[]) => void
   defaultMode?: EditorMode
 }
 
@@ -24,19 +30,32 @@ interface DragState {
   pointStartY: number
 }
 
+type ImageDragState =
+  | { kind: 'move'; imgId: string; startImg: ReferenceImage; pointerStart: Pt }
+  | { kind: 'resize'; imgId: string; startImg: ReferenceImage; handle: HandleId }
+  | { kind: 'rotate'; imgId: string; startImg: ReferenceImage; pointerStart: Pt }
+
 // Distance in font units below which we snap to the first pen point to close a contour
 const CLOSE_SNAP = 14
+const HANDLE_SIZE = 8       // resize handle square (world units)
+const ROTATE_DOT_R = 5      // rotate handle circle radius
 
-export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange, referenceImages, defaultMode }: Props) {
+export default function GlyphCanvas({
+  contours, advanceWidth, metrics, onChange,
+  referenceImages, onReferenceImagesChange,
+  defaultMode,
+}: Props) {
   const svgRef        = useRef<SVGSVGElement>(null)
   const contoursRef   = useRef<Contour[]>(contours)
   const dragRef       = useRef<DragState | null>(null)
   const penDownRef    = useRef<{ x: number; y: number } | null>(null)
+  const imageDragRef  = useRef<ImageDragState | null>(null)
 
-  const [selected,       setSelected]       = useState<{ ci: number; pi: number } | null>(null)
-  const [localContours,  setLocalContours]  = useState<Contour[]>(contours)
-  const [zoom,           setZoom]           = useState(1)
-  const [mode,           setMode]           = useState<EditorMode>(defaultMode ?? 'select')
+  const [selected,         setSelected]         = useState<{ ci: number; pi: number } | null>(null)
+  const [localContours,    setLocalContours]    = useState<Contour[]>(contours)
+  const [zoom,             setZoom]             = useState(1)
+  const [mode,             setMode]             = useState<EditorMode>(defaultMode ?? 'select')
+  const [selectedImageId,  setSelectedImageId]  = useState<string | null>(null)
 
   // Pen tool state
   const [penContour,   setPenContour]   = useState<BezierPoint[]>([])   // points placed so far
@@ -50,6 +69,7 @@ export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange,
   }, [contours])
 
   // ── Coordinate conversion ────────────────────────────────────────────────
+  // Font coords: +y is "up" (math convention). Glyph paths live here.
   function toFontCoords(e: PointerEvent | MouseEvent): { x: number; y: number } | null {
     const svg = svgRef.current
     if (!svg) return null
@@ -57,6 +77,16 @@ export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange,
     pt.x = e.clientX; pt.y = e.clientY
     const svgPt = pt.matrixTransform(svg.getScreenCTM()!.inverse())
     return { x: svgPt.x, y: -svgPt.y }
+  }
+
+  // SVG coords: +y is "down" (raw SVG). Reference images live here.
+  function toSVGCoords(e: PointerEvent | MouseEvent): Pt | null {
+    const svg = svgRef.current
+    if (!svg) return null
+    const pt = svg.createSVGPoint()
+    pt.x = e.clientX; pt.y = e.clientY
+    const svgPt = pt.matrixTransform(svg.getScreenCTM()!.inverse())
+    return { x: svgPt.x, y: svgPt.y }
   }
 
   // ── Select mode – drag points ────────────────────────────────────────────
@@ -71,7 +101,62 @@ export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange,
     setSelected({ ci, pi })
   }, [mode])
 
+  // ── Image mode – select / move / resize / rotate ────────────────────────
+  const writeImage = useCallback((next: ReferenceImage) => {
+    if (!referenceImages || !onReferenceImagesChange) return
+    onReferenceImagesChange(referenceImages.map((i) => (i.id === next.id ? next : i)))
+  }, [referenceImages, onReferenceImagesChange])
+
+  const onImagePointerDown = useCallback((e: React.PointerEvent, imgId: string) => {
+    if (mode !== 'image') return
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const sc = toSVGCoords(e.nativeEvent)
+    if (!sc) return
+    const img = referenceImages?.find((i) => i.id === imgId)
+    if (!img) return
+    setSelectedImageId(imgId)
+    imageDragRef.current = { kind: 'move', imgId, startImg: img, pointerStart: sc }
+  }, [mode, referenceImages])
+
+  const onResizeHandlePointerDown = useCallback((e: React.PointerEvent, handle: HandleId) => {
+    if (mode !== 'image' || !selectedImageId) return
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const img = referenceImages?.find((i) => i.id === selectedImageId)
+    if (!img) return
+    imageDragRef.current = { kind: 'resize', imgId: selectedImageId, startImg: img, handle }
+  }, [mode, selectedImageId, referenceImages])
+
+  const onRotateHandlePointerDown = useCallback((e: React.PointerEvent) => {
+    if (mode !== 'image' || !selectedImageId) return
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const sc = toSVGCoords(e.nativeEvent)
+    if (!sc) return
+    const img = referenceImages?.find((i) => i.id === selectedImageId)
+    if (!img) return
+    imageDragRef.current = { kind: 'rotate', imgId: selectedImageId, startImg: img, pointerStart: sc }
+  }, [mode, selectedImageId, referenceImages])
+
   const onSVGPointerMove = useCallback((e: React.PointerEvent) => {
+    // ── Image drag (move / resize / rotate) ──
+    const idr = imageDragRef.current
+    if (idr) {
+      const sc = toSVGCoords(e.nativeEvent)
+      if (!sc) return
+      if (idr.kind === 'move') {
+        const dx = sc.x - idr.pointerStart.x
+        const dy = sc.y - idr.pointerStart.y
+        writeImage(applyMove(idr.startImg, { x: dx, y: dy }))
+      } else if (idr.kind === 'resize') {
+        writeImage(applyResize(idr.startImg, idr.handle, sc, !e.shiftKey))
+      } else if (idr.kind === 'rotate') {
+        writeImage(applyRotate(idr.startImg, idr.pointerStart, sc, e.shiftKey))
+      }
+      return
+    }
+
     // ── Select drag ──
     const drag = dragRef.current
     if (drag) {
@@ -102,6 +187,12 @@ export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange,
   }, [mode])
 
   const onSVGPointerUp = useCallback((e: React.PointerEvent) => {
+    // ── Image up ──
+    if (imageDragRef.current) {
+      imageDragRef.current = null
+      return
+    }
+
     // ── Select up ──
     if (dragRef.current) {
       dragRef.current = null
@@ -131,6 +222,11 @@ export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange,
   }, [mode, penContour, pendingHandle]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const onSVGPointerDown = useCallback((e: React.PointerEvent) => {
+    // In image mode, clicks on empty SVG space deselect.
+    if (mode === 'image') {
+      if (e.target === svgRef.current) setSelectedImageId(null)
+      return
+    }
     if (mode !== 'pen') return
     e.preventDefault()
     const fc = toFontCoords(e.nativeEvent)
@@ -214,11 +310,21 @@ export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange,
     if (e.key === 'Escape') {
       if (mode === 'pen' && penContour.length > 0) { endPenOpen(); return }
       if (mode === 'pen') { setMode('select'); return }
+      if (mode === 'image' && selectedImageId) { setSelectedImageId(null); return }
+      if (mode === 'image') { setMode('select'); return }
     }
     if (e.key === 'p' || e.key === 'P') { setMode((m) => m === 'pen' ? 'select' : 'pen'); return }
     if (e.key === 'v' || e.key === 'V') { setMode('select'); return }
+    if (e.key === 'i' || e.key === 'I') { setMode((m) => m === 'image' ? 'select' : 'image'); return }
     if ((e.key === 'Delete' || e.key === 'Backspace') && mode === 'pen') {
       deleteLastContour(); return
+    }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && mode === 'image' && selectedImageId) {
+      if (referenceImages && onReferenceImagesChange) {
+        onReferenceImagesChange(referenceImages.filter((i) => i.id !== selectedImageId))
+        setSelectedImageId(null)
+      }
+      return
     }
 
     // Arrow nudge (select mode)
@@ -237,7 +343,7 @@ export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange,
     contoursRef.current = updated
     setLocalContours([...updated])
     onChange(updated)
-  }, [selected, mode, penContour, pendingHandle]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selected, mode, penContour, pendingHandle, selectedImageId, referenceImages, onReferenceImagesChange]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Geometry ─────────────────────────────────────────────────────────────
   const { ascender, descender } = metrics
@@ -278,7 +384,7 @@ export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange,
       className="relative w-full h-full flex items-center justify-center outline-none"
       tabIndex={0}
       onKeyDown={onKeyDown}
-      style={{ cursor: mode === 'pen' ? 'crosshair' : 'default' }}
+      style={{ cursor: mode === 'pen' ? 'crosshair' : mode === 'image' ? 'default' : 'default' }}
     >
       {/* ── Toolbar ────────────────────────────────────────────────────── */}
       <div className="absolute top-4 left-4 flex gap-1 z-10">
@@ -306,6 +412,19 @@ export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange,
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m12 19 7-7 3 3-7 7-3-3z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="m2 2 7.586 7.586"/><circle cx="11" cy="11" r="2"/>
+          </svg>
+        </button>
+        {/* Image transform tool */}
+        <button
+          onClick={() => setMode(mode === 'image' ? 'select' : 'image')}
+          title="Image transform (I)"
+          className="w-8 h-8 rounded-md flex items-center justify-center transition-all"
+          style={mode === 'image'
+            ? { background: 'var(--accent)', color: '#0c0c0c' }
+            : { background: 'var(--surface2)', color: 'var(--muted)', border: '1px solid var(--border)' }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
           </svg>
         </button>
 
@@ -361,9 +480,19 @@ export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange,
 
       {/* ── Shortcut hint ─────────────────────────────────────────────── */}
       <div className="absolute bottom-4 left-4 text-[10px] space-y-0.5 pointer-events-none" style={{ color: 'var(--muted)' }}>
-        <p><kbd className="font-mono">P</kbd> Pen &nbsp;<kbd className="font-mono">V</kbd> Select &nbsp;<kbd className="font-mono">Esc</kbd> End path</p>
+        <p>
+          <kbd className="font-mono">V</kbd> Select &nbsp;
+          <kbd className="font-mono">P</kbd> Pen &nbsp;
+          <kbd className="font-mono">I</kbd> Image &nbsp;
+          <kbd className="font-mono">Esc</kbd> Cancel
+        </p>
         {mode === 'select' && <p>Arrow keys nudge · Shift ×10</p>}
         {mode === 'pen' && penContour.length > 0 && <p>Click first point to close · Drag for curves</p>}
+        {mode === 'image' && (
+          selectedImageId
+            ? <p>Drag to move · Corner = aspect (Shift to free) · Top dot = rotate (Shift = 15°) · Del to remove</p>
+            : <p>Click an image to select</p>
+        )}
       </div>
 
       {/* ── SVG canvas ────────────────────────────────────────────────── */}
@@ -373,7 +502,11 @@ export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange,
         onPointerDown={onSVGPointerDown}
         onPointerMove={onSVGPointerMove}
         onPointerUp={onSVGPointerUp}
-        onPointerLeave={(e) => { if (dragRef.current) { dragRef.current = null; onChange(contoursRef.current) }; setPenMouse(null); setPenDragH(null) }}
+        onPointerLeave={(e) => {
+          if (dragRef.current) { dragRef.current = null; onChange(contoursRef.current) }
+          if (imageDragRef.current) { imageDragRef.current = null }
+          setPenMouse(null); setPenDragH(null)
+        }}
         style={{
           width: `${Math.min(100, 60 * zoom)}%`,
           height: `${Math.min(100, 60 * zoom)}%`,
@@ -381,28 +514,33 @@ export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange,
           userSelect: 'none',
         }}
       >
-        <g transform="scale(1,-1)">
-          {/* ── Reference image overlays (visible only) ─────────────── */}
-          {referenceImages?.filter((img) => img.visible).map((img) => {
-            const cx = img.x + img.width / 2
-            const cy = img.y + img.height / 2
-            const transform = img.rotation ? `rotate(${img.rotation} ${cx} ${cy})` : undefined
-            return (
-              <image
-                key={img.id}
-                href={img.url}
-                x={img.x}
-                y={img.y}
-                width={img.width}
-                height={img.height}
-                preserveAspectRatio="xMidYMid meet"
-                opacity={img.opacity}
-                transform={transform}
-                style={{ pointerEvents: 'none' }}
-              />
-            )
-          })}
+        {/* ── Reference images (rendered OUTSIDE the flip → right-side-up) ── */}
+        {referenceImages?.filter((img) => img.visible).map((img) => {
+          const cx = img.x + img.width / 2
+          const cy = img.y + img.height / 2
+          const transform = img.rotation ? `rotate(${img.rotation} ${cx} ${cy})` : undefined
+          const isSelected = selectedImageId === img.id && mode === 'image'
+          return (
+            <image
+              key={img.id}
+              href={img.url}
+              x={img.x}
+              y={img.y}
+              width={img.width}
+              height={img.height}
+              preserveAspectRatio="xMidYMid meet"
+              opacity={img.opacity}
+              transform={transform}
+              onPointerDown={mode === 'image' ? (e) => onImagePointerDown(e, img.id) : undefined}
+              style={{
+                pointerEvents: mode === 'image' ? 'auto' : 'none',
+                cursor: mode === 'image' ? (isSelected ? 'move' : 'pointer') : 'default',
+              }}
+            />
+          )
+        })}
 
+        <g transform="scale(1,-1)">
           {/* ── Guide lines ─────────────────────────────────────────── */}
           <rect x={0} y={-ascender} width={advanceWidth} height={totalH} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={1} />
           <line x1={-margin} y1={0} x2={advanceWidth + margin} y2={0} stroke="rgba(212,196,168,0.25)" strokeWidth={0.8} />
@@ -513,6 +651,67 @@ export default function GlyphCanvas({ contours, advanceWidth, metrics, onChange,
             )
           })()}
         </g>
+
+        {/* ── Image selection overlay (sits on top, screen-y coords) ── */}
+        {mode === 'image' && selectedImageId && referenceImages?.find((i) => i.id === selectedImageId) && (() => {
+          const img = referenceImages.find((i) => i.id === selectedImageId)!
+          const c = imageCenter(img)
+          const HANDLES: Array<{ id: HandleId; cursor: string }> = [
+            { id: 'nw', cursor: 'nwse-resize' },
+            { id: 'n',  cursor: 'ns-resize' },
+            { id: 'ne', cursor: 'nesw-resize' },
+            { id: 'e',  cursor: 'ew-resize' },
+            { id: 'se', cursor: 'nwse-resize' },
+            { id: 's',  cursor: 'ns-resize' },
+            { id: 'sw', cursor: 'nesw-resize' },
+            { id: 'w',  cursor: 'ew-resize' },
+          ]
+          const rot = rotateHandleWorldPos(img)
+          const topMidX = img.x + img.width / 2
+          const topMidY = img.y
+          // Compute the stalk endpoint relative to the rotated frame
+          const rotStalkAttachWorld = handleWorldPos(img, 'n')
+          return (
+            <g style={{ pointerEvents: 'auto' }}>
+              {/* Bounding box (rotated rectangle) */}
+              <rect
+                x={img.x} y={img.y} width={img.width} height={img.height}
+                fill="none"
+                stroke="var(--accent)" strokeWidth={1.5}
+                transform={img.rotation ? `rotate(${img.rotation} ${c.x} ${c.y})` : undefined}
+                style={{ pointerEvents: 'none' }}
+              />
+              {/* Rotation stalk */}
+              <line
+                x1={rotStalkAttachWorld.x} y1={rotStalkAttachWorld.y}
+                x2={rot.x} y2={rot.y}
+                stroke="var(--accent)" strokeWidth={1}
+                style={{ pointerEvents: 'none' }}
+              />
+              {/* Resize handles */}
+              {HANDLES.map(({ id, cursor }) => {
+                const p = handleWorldPos(img, id)
+                return (
+                  <rect
+                    key={id}
+                    x={p.x - HANDLE_SIZE / 2} y={p.y - HANDLE_SIZE / 2}
+                    width={HANDLE_SIZE} height={HANDLE_SIZE}
+                    fill="var(--surface)" stroke="var(--accent)" strokeWidth={1.5}
+                    onPointerDown={(e) => onResizeHandlePointerDown(e, id)}
+                    style={{ cursor }}
+                  />
+                )
+              })}
+              {/* Rotate handle */}
+              <circle
+                cx={rot.x} cy={rot.y} r={ROTATE_DOT_R}
+                fill="var(--surface)" stroke="var(--accent)" strokeWidth={1.5}
+                onPointerDown={onRotateHandlePointerDown}
+                style={{ cursor: 'grab' }}
+              />
+            </g>
+          )
+        })()}
       </svg>
 
       {localContours.length === 0 && penContour.length === 0 && (

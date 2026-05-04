@@ -85,6 +85,7 @@ export default function LigatureEditorPage({ params }: { params: { id: string; s
             metrics={style.metrics}
             onChange={handleChange}
             referenceImages={referenceImages}
+            onReferenceImagesChange={handleReferenceImagesChange}
           />
         </div>
         <GlyphSidePanel

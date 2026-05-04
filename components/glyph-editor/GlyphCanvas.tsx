@@ -7,6 +7,10 @@ import {
   handleWorldPos, rotateHandleWorldPos, imageCenter,
   type HandleId, type Pt,
 } from '@/lib/image-transform'
+import {
+  findSiblingHandle, closestSegmentHit, insertPointAtSegment, backspaceLastPenPoint,
+  type SiblingInfo, type SegmentHit,
+} from '@/lib/pen-tool'
 import type { Contour, BezierPoint, ReferenceImage } from '@/lib/types'
 
 type EditorMode = 'select' | 'pen' | 'image'
@@ -28,6 +32,10 @@ interface DragState {
   startFontY: number
   pointStartX: number
   pointStartY: number
+  // For dragging an off-curve handle: the opposite handle to mirror.
+  sibling?: SiblingInfo
+  // For dragging an on-curve: adjacent handles that should translate too.
+  attachedHandles?: Array<{ idx: number; startX: number; startY: number }>
 }
 
 type ImageDragState =
@@ -37,6 +45,8 @@ type ImageDragState =
 
 // Distance in font units below which we snap to the first pen point to close a contour
 const CLOSE_SNAP = 14
+// Distance threshold for showing the "insert point on segment" indicator in pen mode.
+const INSERT_SNAP = 14
 const HANDLE_SIZE = 8       // resize handle square (world units)
 const ROTATE_DOT_R = 5      // rotate handle circle radius
 
@@ -62,6 +72,7 @@ export default function GlyphCanvas({
   const [pendingHandle, setPendingHandle] = useState<{ x: number; y: number } | null>(null) // outgoing handle from last placed pt
   const [penMouse,     setPenMouse]     = useState<{ x: number; y: number } | null>(null)   // live cursor
   const [penDragH,     setPenDragH]     = useState<{ x: number; y: number } | null>(null)   // drag-in-progress handle
+  const [penInsertHit, setPenInsertHit] = useState<SegmentHit | null>(null)                 // hovered segment for point-insert
 
   useEffect(() => {
     contoursRef.current = contours
@@ -96,8 +107,29 @@ export default function GlyphCanvas({
     e.currentTarget.setPointerCapture(e.pointerId)
     const fc = toFontCoords(e.nativeEvent)
     if (!fc) return
-    const pt = contoursRef.current[ci].points[pi]
-    dragRef.current = { contourIdx: ci, pointIdx: pi, startFontX: fc.x, startFontY: fc.y, pointStartX: pt.x, pointStartY: pt.y }
+    const contour = contoursRef.current[ci]
+    const pt = contour.points[pi]
+
+    let sibling: SiblingInfo | undefined
+    let attachedHandles: DragState['attachedHandles']
+    if (pt.type === 'off') {
+      sibling = findSiblingHandle(contour, pi) ?? undefined
+    } else {
+      // On-curve drag: capture adjacent off-curve handles so they translate together.
+      const left  = contour.points[pi - 1]
+      const right = contour.points[pi + 1]
+      const adj: NonNullable<DragState['attachedHandles']> = []
+      if (left?.type  === 'off') adj.push({ idx: pi - 1, startX: left.x,  startY: left.y })
+      if (right?.type === 'off') adj.push({ idx: pi + 1, startX: right.x, startY: right.y })
+      if (adj.length > 0) attachedHandles = adj
+    }
+
+    dragRef.current = {
+      contourIdx: ci, pointIdx: pi,
+      startFontX: fc.x, startFontY: fc.y,
+      pointStartX: pt.x, pointStartY: pt.y,
+      sibling, attachedHandles,
+    }
     setSelected({ ci, pi })
   }, [mode])
 
@@ -167,9 +199,31 @@ export default function GlyphCanvas({
       if (e.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0 }
       const newX = Math.round(drag.pointStartX + dx)
       const newY = Math.round(drag.pointStartY + dy)
-      const updated = contoursRef.current.map((c, ci) =>
-        ci !== drag.contourIdx ? c : { points: c.points.map((p, pi) => pi !== drag.pointIdx ? p : { ...p, x: newX, y: newY }) }
-      )
+
+      const updated = contoursRef.current.map((c, ci) => {
+        if (ci !== drag.contourIdx) return c
+        const newPts = c.points.map((p, pi) => pi !== drag.pointIdx ? p : { ...p, x: newX, y: newY })
+
+        // Mirror sibling handle (smooth point) unless Alt is held.
+        if (drag.sibling && !e.altKey) {
+          const onPt = c.points[drag.sibling.onIdx]
+          newPts[drag.sibling.siblingIdx] = {
+            ...newPts[drag.sibling.siblingIdx],
+            x: Math.round(2 * onPt.x - newX),
+            y: Math.round(2 * onPt.y - newY),
+          }
+        }
+
+        // Translate adjacent handles when dragging an on-curve.
+        if (drag.attachedHandles) {
+          const tdx = newX - drag.pointStartX
+          const tdy = newY - drag.pointStartY
+          for (const h of drag.attachedHandles) {
+            newPts[h.idx] = { ...newPts[h.idx], x: Math.round(h.startX + tdx), y: Math.round(h.startY + tdy) }
+          }
+        }
+        return { points: newPts }
+      })
       contoursRef.current = updated
       setLocalContours([...updated])
       return
@@ -183,8 +237,15 @@ export default function GlyphCanvas({
       if (penDownRef.current && e.buttons === 1) {
         setPenDragH(fc)
       }
+      // Hover-detect a path segment to offer point insertion.
+      if (penContour.length === 0 && contoursRef.current.length > 0) {
+        const hit = closestSegmentHit(contoursRef.current, fc)
+        setPenInsertHit(hit && hit.dist < INSERT_SNAP ? hit : null)
+      } else if (penInsertHit) {
+        setPenInsertHit(null)
+      }
     }
-  }, [mode])
+  }, [mode, penContour.length, penInsertHit])
 
   const onSVGPointerUp = useCallback((e: React.PointerEvent) => {
     // ── Image up ──
@@ -232,6 +293,18 @@ export default function GlyphCanvas({
     const fc = toFontCoords(e.nativeEvent)
     if (!fc) return
 
+    // Insert-on-segment: only when not already drawing AND a segment is hovered.
+    if (penContour.length === 0 && penInsertHit) {
+      const updated = contoursRef.current.map((c, ci) =>
+        ci === penInsertHit.contourIdx ? insertPointAtSegment(c, penInsertHit) : c,
+      )
+      contoursRef.current = updated
+      setLocalContours(updated)
+      onChange(updated)
+      setPenInsertHit(null)
+      return
+    }
+
     // Check if clicking near first point → close contour
     if (penContour.length >= 2) {
       const firstOn = penContour.find((p) => p.type === 'on')
@@ -246,7 +319,7 @@ export default function GlyphCanvas({
 
     penDownRef.current = { x: fc.x, y: fc.y }
     e.currentTarget.setPointerCapture(e.pointerId)
-  }, [mode, penContour]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mode, penContour, penInsertHit]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Pen helpers ──────────────────────────────────────────────────────────
   function addPenPoint(anchor: { x: number; y: number }, dragHandle: { x: number; y: number } | null) {
@@ -317,7 +390,14 @@ export default function GlyphCanvas({
     if (e.key === 'v' || e.key === 'V') { setMode('select'); return }
     if (e.key === 'i' || e.key === 'I') { setMode((m) => m === 'image' ? 'select' : 'image'); return }
     if ((e.key === 'Delete' || e.key === 'Backspace') && mode === 'pen') {
-      deleteLastContour(); return
+      if (penContour.length > 0) {
+        const r = backspaceLastPenPoint(penContour, pendingHandle)
+        setPenContour(r.contour)
+        setPendingHandle(r.pendingHandle)
+      } else {
+        deleteLastContour()
+      }
+      return
     }
     if ((e.key === 'Delete' || e.key === 'Backspace') && mode === 'image' && selectedImageId) {
       if (referenceImages && onReferenceImagesChange) {
@@ -486,8 +566,13 @@ export default function GlyphCanvas({
           <kbd className="font-mono">I</kbd> Image &nbsp;
           <kbd className="font-mono">Esc</kbd> Cancel
         </p>
-        {mode === 'select' && <p>Arrow keys nudge · Shift ×10</p>}
-        {mode === 'pen' && penContour.length > 0 && <p>Click first point to close · Drag for curves</p>}
+        {mode === 'select' && <p>Arrow keys nudge · Shift ×10 · Alt + drag handle = break smooth</p>}
+        {mode === 'pen' && penContour.length === 0 && (
+          penInsertHit
+            ? <p>Click to insert a point on this segment</p>
+            : <p>Click to start · Drag for curves · Hover a path to insert</p>
+        )}
+        {mode === 'pen' && penContour.length > 0 && <p>Click first point to close · Backspace removes last point</p>}
         {mode === 'image' && (
           selectedImageId
             ? <p>Drag to move · Corner = aspect (Shift to free) · Top dot = rotate (Shift = 15°) · Del to remove</p>
@@ -505,7 +590,7 @@ export default function GlyphCanvas({
         onPointerLeave={(e) => {
           if (dragRef.current) { dragRef.current = null; onChange(contoursRef.current) }
           if (imageDragRef.current) { imageDragRef.current = null }
-          setPenMouse(null); setPenDragH(null)
+          setPenMouse(null); setPenDragH(null); setPenInsertHit(null)
         }}
         style={{
           width: `${Math.min(100, 60 * zoom)}%`,
@@ -636,6 +721,16 @@ export default function GlyphCanvas({
                 fill="transparent" stroke="rgba(212,196,168,0.5)" strokeWidth={1.2} />
             )
           })}
+
+          {/* Insert-on-segment ghost (pen mode, not drawing) */}
+          {mode === 'pen' && penContour.length === 0 && penInsertHit && (
+            <>
+              <circle cx={penInsertHit.pt.x} cy={penInsertHit.pt.y} r={4}
+                fill="var(--accent)" stroke="var(--surface)" strokeWidth={1.5} />
+              <circle cx={penInsertHit.pt.x} cy={penInsertHit.pt.y} r={9}
+                fill="none" stroke="var(--accent)" strokeWidth={1} opacity={0.4} />
+            </>
+          )}
 
           {/* Pending handle preview (outgoing from last point) */}
           {pendingHandle && penContour.length > 0 && (() => {
